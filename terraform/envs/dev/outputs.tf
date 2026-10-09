@@ -25,12 +25,12 @@ output "emr_service_access_sg_id" {
 
 output "emr_cluster_id" {
   description = "EMR Cluster ID"
-  value       = module.emr.cluster_id
+  value       = var.enable_emr ? module.emr[0].cluster_id : null
 }
 
 output "emr_master_public_dns" {
   description = "Public DNS of the EMR Master node"
-  value       = module.emr.master_public_dns
+  value       = var.enable_emr ? module.emr[0].master_public_dns : null
 }
 
 output "emr_private_key_path" {
@@ -40,7 +40,12 @@ output "emr_private_key_path" {
 
 output "emr_ssh_connection_string" {
   description = "SSH connection command to connect to the Master node"
-  value       = "ssh -i ${abspath(local_sensitive_file.emr_private_key.filename)} hadoop@${module.emr.master_public_dns}"
+  value       = var.enable_emr ? "ssh -i ${abspath(local_sensitive_file.emr_private_key.filename)} hadoop@${module.emr[0].master_public_dns}" : null
+}
+
+output "emr_ssm_key_parameter" {
+  description = "SSM Parameter Store path containing the private SSH key"
+  value       = aws_ssm_parameter.emr_ssh_private_key.name
 }
 
 output "emr_artifacts_bucket" {
