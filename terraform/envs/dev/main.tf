@@ -65,20 +65,9 @@ resource "aws_ssm_parameter" "emr_ssh_private_key" {
   }
 }
 
-# S3 Artifacts Bucket & Bootstrap upload
-resource "aws_s3_bucket" "emr_artifacts" {
-  bucket_prefix = "${var.project_name}-${var.environment}-artifacts-"
-  force_destroy = true
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-  }
-}
-
+# Bootstrap script upload to artifacts bucket
 resource "aws_s3_object" "bootstrap_script" {
-  bucket = aws_s3_bucket.emr_artifacts.id
+  bucket = module.s3_datalake.artifacts_bucket_id
   key    = "scripts/bootstrap.sh"
   source = "${path.module}/../../../scripts/bootstrap.sh"
   etag   = filemd5("${path.module}/../../../scripts/bootstrap.sh")
@@ -100,8 +89,8 @@ module "emr" {
   service_role_arn     = module.iam_to_emr_integration.service_role_arn
   instance_profile_arn = module.iam_to_emr_integration.instance_profile_arn
   key_pair_name        = local.selected_key_name
-  bootstrap_s3_path    = "s3://${aws_s3_bucket.emr_artifacts.id}/${aws_s3_object.bootstrap_script.key}"
-  log_uri              = "s3://${aws_s3_bucket.emr_artifacts.id}/logs/"
+  bootstrap_s3_path    = "s3://${module.s3_datalake.artifacts_bucket_id}/${aws_s3_object.bootstrap_script.key}"
+  log_uri              = "s3://${module.s3_datalake.artifacts_bucket_id}/logs/"
   master_instance_type = var.master_instance_type
   core_instance_type   = var.core_instance_type
   core_instance_count  = var.core_instance_count
