@@ -24,6 +24,20 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 - Compute is ephemeral. The HDFS on EBS storage terminates with the cluster.
 - Persistent scripts, artifacts, datasets, and bootstrap files reside in Amazon S3.
 
+### Data Lake S3 Prefix Convention
+
+| Prefijo propuesto | Contenido |
+| --- | --- |
+| `bronze/<fuente>/snapshot_id=<id>/` | Archivos originales y metadatos de la versión incorporada. |
+| `silver/<tabla>/version=<id>/` | Datos normalizados por fuente. |
+| `gold/<tabla>/version=<id>/` | Tablas integradas y aprobadas para consumo. |
+| `quarantine/<fuente>/run_id=<id>/` | Registros rechazados y motivos de rechazo. |
+| `artifacts/config/` | Configuraciones y contratos de datos versionados. |
+| `artifacts/models/` | Modelos y transformaciones, cuando se desarrolle el punto 4. |
+| `evidence/run_id=<id>/` | Manifiestos, calidad, métricas y reportes de ejecución. |
+| `benchmarks/escenario=<factor>/` | Entradas y salidas exclusivas de las pruebas de rendimiento. |
+| `logs/` | Registros de ejecución y eventos de Spark. |
+
 ---
 
 ## 3. Repository Topology
@@ -35,12 +49,14 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 ├── scripts/
 │   └── bootstrap.sh              # EMR bootstrap actions (pip dependencies, etc.)
 └── terraform/
+    ├── bootstrap/                # Foundational remote state backend (S3 bucket with native locking)
     ├── envs/
     │   └── dev/                  # Root orchestration (calls modules, defines tfvars/backend)
-    ├── global/                   # Persistent foundational resources (S3 buckets, state)
+    ├── global/                   # Persistent foundational resources
     └── modules/
         ├── networking/           # VPC, Subnets, IGW, S3 Endpoint, 3x EMR Security Groups [DONE]
         ├── emr/                  # Target module: IAM roles, Instance Profile, EMR Cluster
+        ├── s3/                   # Data Lake S3 Bucket, prefixes, encryption and access policies
         └── lambda/               # (Optional/Future: event triggers, Slack notifications)
 
 ```
