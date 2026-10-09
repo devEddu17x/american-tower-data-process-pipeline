@@ -55,11 +55,19 @@ No se admiten supuestos inventados ni valores «0». La línea base se sostiene 
 
 - **Región:** AWS `us-east-1`.
 - **Topología de red:** VPC `10.0.0.0/16` con subred privada `10.0.0.20/24`. Conectividad hacia S3 resuelta mediante VPC Gateway Endpoint (gratuito).
-- **Almacenamiento (Data Lake):** Amazon S3 organizado en prefijos lógicos inmutables:
-  - `Bronze/`: Datos crudos en formato original, metadatos y manifiestos de procedencia `manifest.json`.
-  - `Silver/`: Datos normalizados, geometrías validadas y variables curadas.
-  - `Gold/`: Tablas analíticas distrito-trimestre en formato columnar Apache Parquet con compresión Snappy.
-  - `Artifacts/`: Modelos entrenados, preprocesamiento y contratos de inferencia.
+- **Almacenamiento (Data Lake):** Amazon S3 organizado en prefijos lógicos inmutables según la siguiente convención:
+
+| Prefijo propuesto | Contenido |
+| --- | --- |
+| `bronze/<fuente>/snapshot_id=<id>/` | Archivos originales y metadatos de la versión incorporada. |
+| `silver/<tabla>/version=<id>/` | Datos normalizados por fuente. |
+| `gold/<tabla>/version=<id>/` | Tablas integradas y aprobadas para consumo. |
+| `quarantine/<fuente>/run_id=<id>/` | Registros rechazados y motivos de rechazo. |
+| `artifacts/config/` | Configuraciones y contratos de datos versionados. |
+| `artifacts/models/` | Modelos y transformaciones, cuando se desarrolle el punto 4. |
+| `evidence/run_id=<id>/` | Manifiestos, calidad, métricas y reportes de ejecución. |
+| `benchmarks/escenario=<factor>/` | Entradas y salidas exclusivas de las pruebas de rendimiento. |
+| `logs/` | Registros de ejecución y eventos de Spark. |
 - **Motor unificado de cómputo:** Amazon EMR sobre EC2 (release `emr-7.10.0`) con **Apache Spark 3.5.5**, **Apache Hadoop/YARN 3.4.1** y **Apache Sedona 1.7.2**.
 - **Decisión de diseño para la Ingesta (Nodo 1 del Diagrama):**
   - **Ratificación:** Se utiliza estrictamente **Amazon EMR (Spark)** para la ingesta, manteniendo total fidelidad con el diagrama de arquitectura validado.
