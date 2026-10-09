@@ -117,16 +117,13 @@ american-tower-data-process-pipeline/docs/
 │   │   ├── 3.1.5.world-pop/dataset.md
 │   │   └── 3.1.6.sentinel/dataset.md
 │   ├── 3.2/                                    # 3.2 Ingesta y organización del Data Lake (ACTUAL)
-│   │   ├── propuestas-ingesta.md               # Análisis de opciones y estrategia EMR adoptada
-│   │   └── mejores-opciones-ingesta.md         # Evaluación arquitectónica comparativa (Serverless / Glue)
 │   ├── 3.3/                                    # 3.3 Procesamiento y limpieza (PENDIENTE)
 │   ├── 3.4/                                    # 3.4 Control de calidad de los datos (PENDIENTE)
 │   ├── 3.5/                                    # 3.5 Almacenamiento de datos procesados (PENDIENTE)
 │   ├── 3.6/                                    # 3.6 Optimización del rendimiento (PENDIENTE)
 │   ├── 3.7/                                    # 3.7 Prueba de escalabilidad (PENDIENTE)
 │   └── 3.8/                                    # 3.8 Seguridad de la plataforma (PENDIENTE)
-├── 3.1.x-fuentes.md                            # Resumen preliminar de fuentes
-├── 3.1.y-fuentes detalle.md                    # Fichas técnicas completas de procedencia y diccionarios
+├── fuentes.md                                  # Descripcion breve y links de descarga de datasets
 ├── Cobertura móvil por empresa operadora.csv   # Dataset oficial OSIPTEL (51,366 registros)
 ├── DISTRITO.gpkg                               # Capa cartográfica distrital INEI (1,890 polígonos)
 ├── guia-estructura-proyecto-big-data.md        # Rúbrica y estructura académica UPAO
