@@ -19,6 +19,13 @@ module "iam_to_emr_integration" {
   propagation_wait_seconds = 15
 }
 
+# Central Data Lake S3 Bucket
+module "s3_datalake" {
+  source       = "../../modules/s3"
+  project_name = var.project_name
+  environment  = var.environment
+}
+
 # Ephemeral SSH Key Pair Generation
 resource "tls_private_key" "emr_ssh_key" {
   algorithm = "RSA"

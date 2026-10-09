@@ -47,3 +47,19 @@ output "emr_artifacts_bucket" {
   description = "S3 bucket for EMR scripts and artifacts"
   value       = aws_s3_bucket.emr_artifacts.id
 }
+
+output "datalake_bucket_id" {
+  description = "ID/Name of the Central Data Lake S3 Bucket"
+  value       = module.s3_datalake.bucket_id
+}
+
+output "datalake_bucket_arn" {
+  description = "ARN of the Central Data Lake S3 Bucket"
+  value       = module.s3_datalake.bucket_arn
+}
+
+output "datalake_prefix_map" {
+  description = "Map of Data Lake S3 URIs organized by convention"
+  value       = module.s3_datalake.prefix_map
+}
+
