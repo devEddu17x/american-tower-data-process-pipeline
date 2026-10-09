@@ -24,19 +24,20 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 - Compute is ephemeral. The HDFS on EBS storage terminates with the cluster.
 - Persistent scripts, artifacts, datasets, and bootstrap files reside in Amazon S3.
 
-### Data Lake S3 Prefix Convention
+### Data Lake Dedicated Buckets & Layout
 
-| Prefijo propuesto | Contenido |
+| Bucket / Ruta | Contenido |
 | --- | --- |
-| `bronze/<fuente>/snapshot_id=<id>/` | Archivos originales y metadatos de la versión incorporada. |
-| `silver/<tabla>/version=<id>/` | Datos normalizados por fuente. |
-| `gold/<tabla>/version=<id>/` | Tablas integradas y aprobadas para consumo. |
-| `quarantine/<fuente>/run_id=<id>/` | Registros rechazados y motivos de rechazo. |
-| `artifacts/config/` | Configuraciones y contratos de datos versionados. |
-| `artifacts/models/` | Modelos y transformaciones, cuando se desarrolle el punto 4. |
-| `evidence/run_id=<id>/` | Manifiestos, calidad, métricas y reportes de ejecución. |
-| `benchmarks/escenario=<factor>/` | Entradas y salidas exclusivas de las pruebas de rendimiento. |
-| `logs/` | Registros de ejecución y eventos de Spark. |
+| `bronze` (`<fuente>/snapshot_id=<id>/`) | Archivos originales y metadatos de la versión incorporada. |
+| `silver` (`<tabla>/version=<id>/`) | Datos normalizados por fuente. |
+| `gold` (`<tabla>/version=<id>/`) | Tablas integradas y aprobadas para consumo. |
+| `operations` (`quarantine/<fuente>/run_id=<id>/`) | Registros rechazados y motivos de rechazo. |
+| `operations` (`evidence/run_id=<id>/`) | Manifiestos, calidad, métricas y reportes de ejecución. |
+| `operations` (`benchmarks/escenario=<factor>/`) | Entradas y salidas exclusivas de las pruebas de rendimiento. |
+| `artifacts` (`config/`) | Configuraciones y contratos de datos versionados. |
+| `artifacts` (`models/`) | Modelos y transformaciones, cuando se desarrolle el punto 4. |
+| `artifacts` (`logs/`) | Registros de ejecución y eventos de Spark y EMR. |
+| `artifacts` (`scripts/`) | Scripts de bootstrap y dependencias del clúster. |
 
 ---
 
