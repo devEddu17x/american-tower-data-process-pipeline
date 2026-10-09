@@ -54,3 +54,10 @@ variable "idle_timeout" {
   type        = number
   default     = 3600
 }
+
+variable "enable_emr" {
+  description = "Flag to control whether the EMR cluster is provisioned (set false to terminate cluster and preserve S3 data)"
+  type        = bool
+  default     = true
+}
+
