@@ -1,33 +1,52 @@
-output "bucket_id" {
-  description = "The name/ID of the S3 bucket"
-  value       = aws_s3_bucket.this.id
+output "bucket_ids" {
+  description = "Map of created S3 bucket IDs keyed by layer"
+  value       = { for k, b in aws_s3_bucket.this : k => b.id }
 }
 
-output "bucket_arn" {
-  description = "The ARN of the S3 bucket"
-  value       = aws_s3_bucket.this.arn
+output "bucket_arns" {
+  description = "Map of created S3 bucket ARNs keyed by layer"
+  value       = { for k, b in aws_s3_bucket.this : k => b.arn }
 }
 
-output "bucket_domain_name" {
-  description = "The bucket domain name"
-  value       = aws_s3_bucket.this.bucket_domain_name
+output "bronze_bucket_id" {
+  description = "Bronze bucket ID"
+  value       = aws_s3_bucket.this["bronze"].id
 }
 
-output "bucket_regional_domain_name" {
-  description = "The bucket region-specific domain name"
-  value       = aws_s3_bucket.this.bucket_regional_domain_name
+output "silver_bucket_id" {
+  description = "Silver bucket ID"
+  value       = aws_s3_bucket.this["silver"].id
 }
 
-output "prefix_map" {
-  description = "Map of S3 URI prefixes conforming to the Data Lake convention"
+output "gold_bucket_id" {
+  description = "Gold bucket ID"
+  value       = aws_s3_bucket.this["gold"].id
+}
+
+output "operations_bucket_id" {
+  description = "Operations bucket ID"
+  value       = aws_s3_bucket.this["operations"].id
+}
+
+output "artifacts_bucket_id" {
+  description = "Artifacts bucket ID"
+  value       = aws_s3_bucket.this["artifacts"].id
+}
+
+output "uri_map" {
+  description = "Map of S3 URIs for all data layers and operational prefixes"
   value = {
-    bronze     = "s3://${aws_s3_bucket.this.id}/bronze/"
-    silver     = "s3://${aws_s3_bucket.this.id}/silver/"
-    gold       = "s3://${aws_s3_bucket.this.id}/gold/"
-    quarantine = "s3://${aws_s3_bucket.this.id}/quarantine/"
-    artifacts  = "s3://${aws_s3_bucket.this.id}/artifacts/"
-    evidence   = "s3://${aws_s3_bucket.this.id}/evidence/"
-    benchmarks = "s3://${aws_s3_bucket.this.id}/benchmarks/"
-    logs       = "s3://${aws_s3_bucket.this.id}/logs/"
+    bronze     = "s3://${aws_s3_bucket.this["bronze"].id}/"
+    silver     = "s3://${aws_s3_bucket.this["silver"].id}/"
+    gold       = "s3://${aws_s3_bucket.this["gold"].id}/"
+    operations = "s3://${aws_s3_bucket.this["operations"].id}/"
+    artifacts  = "s3://${aws_s3_bucket.this["artifacts"].id}/"
+    quarantine = "s3://${aws_s3_bucket.this["operations"].id}/quarantine/"
+    evidence   = "s3://${aws_s3_bucket.this["operations"].id}/evidence/"
+    benchmarks = "s3://${aws_s3_bucket.this["operations"].id}/benchmarks/"
+    config     = "s3://${aws_s3_bucket.this["artifacts"].id}/config/"
+    models     = "s3://${aws_s3_bucket.this["artifacts"].id}/models/"
+    logs       = "s3://${aws_s3_bucket.this["artifacts"].id}/logs/"
+    scripts    = "s3://${aws_s3_bucket.this["artifacts"].id}/scripts/"
   }
 }
