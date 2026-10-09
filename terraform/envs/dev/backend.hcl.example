@@ -1,0 +1,7 @@
+bucket       = "your_bucket"
+key          = "dev/terraform.tfstate"
+region       = "us-east-1"
+profile      = "bigdata"
+use_lockfile = true
+encrypt      = true
+encrypt      = true
