@@ -124,10 +124,7 @@ american-tower-data-process-pipeline/docs/
 │   ├── 3.7/                                    # 3.7 Prueba de escalabilidad (PENDIENTE)
 │   └── 3.8/                                    # 3.8 Seguridad de la plataforma (PENDIENTE)
 ├── fuentes.md                                  # Descripcion breve y links de descarga de datasets
-├── Cobertura móvil por empresa operadora.csv   # Dataset oficial OSIPTEL (51,366 registros)
-├── DISTRITO.gpkg                               # Capa cartográfica distrital INEI (1,890 polígonos)
-├── guia-estructura-proyecto-big-data.md        # Rúbrica y estructura académica UPAO
-├── puntos 3.md                                 # Lista de subsecciones del Capítulo 3
+├── guia.md                                     # Rúbrica y estructura académica UPAO
 └── AGENTS.md                                   # Este manual de contexto operativo
 ```
 
