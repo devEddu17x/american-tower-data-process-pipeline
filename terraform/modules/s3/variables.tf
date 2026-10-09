@@ -15,9 +15,9 @@ variable "bucket_name" {
 }
 
 variable "force_destroy" {
-  description = "Whether to allow bucket deletion even if it contains objects"
+  description = "Whether to allow bucket deletion even if it contains objects (false prevents accidental deletion)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "versioning_enabled" {
