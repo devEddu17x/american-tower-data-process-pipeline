@@ -8,44 +8,22 @@ variable "environment" {
   type        = string
 }
 
-variable "bucket_name" {
-  description = "Explicit S3 bucket name. If null, a name will be generated using bucket_prefix"
-  type        = string
-  default     = null
-}
-
 variable "force_destroy" {
-  description = "Whether to allow bucket deletion even if it contains objects"
+  description = "Whether to allow bucket deletion even if it contains objects (false protects data)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "versioning_enabled" {
-  description = "Enable versioning for the S3 bucket"
+  description = "Enable versioning for all S3 buckets"
   type        = bool
   default     = true
 }
 
 variable "create_prefix_markers" {
-  description = "Whether to create placeholder objects for top-level Data Lake prefixes"
+  description = "Whether to create placeholder objects for top-level operational and artifact prefixes"
   type        = bool
   default     = true
-}
-
-variable "initial_prefixes" {
-  description = "List of folder prefixes to create as folder markers in the bucket"
-  type        = list(string)
-  default = [
-    "bronze/",
-    "silver/",
-    "gold/",
-    "quarantine/",
-    "artifacts/config/",
-    "artifacts/models/",
-    "evidence/",
-    "benchmarks/",
-    "logs/",
-  ]
 }
 
 variable "tags" {
@@ -53,4 +31,3 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
-

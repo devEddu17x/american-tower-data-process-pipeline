@@ -1,11 +1,49 @@
+locals {
+  bucket_definitions = {
+    bronze = {
+      description = "Raw ingested data from external sources"
+      prefixes    = []
+    }
+    silver = {
+      description = "Cleaned and normalized tabular datasets"
+      prefixes    = []
+    }
+    gold = {
+      description = "Integrated analytical tables ready for consumption and models"
+      prefixes    = []
+    }
+    operations = {
+      description = "Operational monitoring, quarantined records, evidence and benchmarks"
+      prefixes    = ["quarantine/", "evidence/", "benchmarks/"]
+    }
+    artifacts = {
+      description = "Versioned configurations, trained models, logs and bootstrap scripts"
+      prefixes    = ["config/", "models/", "logs/", "scripts/"]
+    }
+  }
+
+  # Flatten prefix list for object marker generation
+  prefix_objects = merge([
+    for b_key, b_val in local.bucket_definitions : {
+      for p in b_val.prefixes : "${b_key}/${p}" => {
+        bucket = b_key
+        key    = p
+      }
+    }
+  ]...)
+}
+
+# Dedicated S3 Buckets for each layer
 resource "aws_s3_bucket" "this" {
-  bucket        = var.bucket_name
-  bucket_prefix = var.bucket_name == null ? "${var.project_name}-${var.environment}-datalake-" : null
+  for_each = local.bucket_definitions
+
+  bucket_prefix = "${var.project_name}-${var.environment}-${each.key}-"
   force_destroy = var.force_destroy
 
   tags = merge(
     {
-      Name        = "${var.project_name}-${var.environment}-datalake"
+      Name        = "${var.project_name}-${var.environment}-${each.key}"
+      Layer       = each.key
       Project     = var.project_name
       Environment = var.environment
       ManagedBy   = "Terraform"
@@ -14,9 +52,11 @@ resource "aws_s3_bucket" "this" {
   )
 }
 
-# Block all public access by default
+# Block all public access by default for all buckets
 resource "aws_s3_bucket_public_access_block" "this" {
-  bucket = aws_s3_bucket.this.id
+  for_each = aws_s3_bucket.this
+
+  bucket = each.value.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -26,7 +66,9 @@ resource "aws_s3_bucket_public_access_block" "this" {
 
 # Default Server-Side Encryption (SSE-S3 AES256)
 resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
-  bucket = aws_s3_bucket.this.id
+  for_each = aws_s3_bucket.this
+
+  bucket = each.value.id
 
   rule {
     apply_server_side_encryption_by_default {
@@ -35,21 +77,22 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
   }
 }
 
-# Bucket Versioning
+# Versioning on each bucket
 resource "aws_s3_bucket_versioning" "this" {
-  bucket = aws_s3_bucket.this.id
+  for_each = aws_s3_bucket.this
+
+  bucket = each.value.id
 
   versioning_configuration {
     status = var.versioning_enabled ? "Enabled" : "Suspended"
   }
 }
 
-# Folder prefix markers conforming to Data Lake layout
+# Folder prefix markers inside operational and artifact buckets
 resource "aws_s3_object" "prefix_markers" {
-  for_each = var.create_prefix_markers ? toset(var.initial_prefixes) : toset([])
+  for_each = var.create_prefix_markers ? local.prefix_objects : {}
 
-  bucket  = aws_s3_bucket.this.id
-  key     = each.value
+  bucket  = aws_s3_bucket.this[each.value.bucket].id
+  key     = each.value.key
   content = ""
 }
-

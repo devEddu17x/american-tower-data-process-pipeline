@@ -55,19 +55,20 @@ No se admiten supuestos inventados ni valores «0». La línea base se sostiene 
 
 - **Región:** AWS `us-east-1`.
 - **Topología de red:** VPC `10.0.0.0/16` con subred privada `10.0.0.20/24`. Conectividad hacia S3 resuelta mediante VPC Gateway Endpoint (gratuito).
-- **Almacenamiento (Data Lake):** Amazon S3 organizado en prefijos lógicos inmutables según la siguiente convención:
+- **Almacenamiento (Data Lake):** Amazon S3 desacoplado en 5 buckets dedicados para aislar políticas de seguridad, permisos y ciclos de vida:
 
-| Prefijo propuesto | Contenido |
+| Bucket / Ruta | Contenido |
 | --- | --- |
-| `bronze/<fuente>/snapshot_id=<id>/` | Archivos originales y metadatos de la versión incorporada. |
-| `silver/<tabla>/version=<id>/` | Datos normalizados por fuente. |
-| `gold/<tabla>/version=<id>/` | Tablas integradas y aprobadas para consumo. |
-| `quarantine/<fuente>/run_id=<id>/` | Registros rechazados y motivos de rechazo. |
-| `artifacts/config/` | Configuraciones y contratos de datos versionados. |
-| `artifacts/models/` | Modelos y transformaciones, cuando se desarrolle el punto 4. |
-| `evidence/run_id=<id>/` | Manifiestos, calidad, métricas y reportes de ejecución. |
-| `benchmarks/escenario=<factor>/` | Entradas y salidas exclusivas de las pruebas de rendimiento. |
-| `logs/` | Registros de ejecución y eventos de Spark. |
+| `bronze` (`<fuente>/snapshot_id=<id>/`) | Archivos originales y metadatos de la versión incorporada. |
+| `silver` (`<tabla>/version=<id>/`) | Datos normalizados por fuente. |
+| `gold` (`<tabla>/version=<id>/`) | Tablas integradas y aprobadas para consumo. |
+| `operations` (`quarantine/<fuente>/run_id=<id>/`) | Registros rechazados y motivos de rechazo. |
+| `operations` (`evidence/run_id=<id>/`) | Manifiestos, calidad, métricas y reportes de ejecución. |
+| `operations` (`benchmarks/escenario=<factor>/`) | Entradas y salidas exclusivas de las pruebas de rendimiento. |
+| `artifacts` (`config/`) | Configuraciones y contratos de datos versionados. |
+| `artifacts` (`models/`) | Modelos y transformaciones, cuando se desarrolle el punto 4. |
+| `artifacts` (`logs/`) | Registros de ejecución y eventos de Spark y EMR. |
+| `artifacts` (`scripts/`) | Scripts de bootstrap y dependencias del clúster. |
 - **Motor unificado de cómputo:** Amazon EMR sobre EC2 (release `emr-7.10.0`) con **Apache Spark 3.5.5**, **Apache Hadoop/YARN 3.4.1** y **Apache Sedona 1.7.2**.
 - **Decisión de diseño para la Ingesta (Nodo 1 del Diagrama):**
   - **Ratificación:** Se utiliza estrictamente **Amazon EMR (Spark)** para la ingesta, manteniendo total fidelidad con el diagrama de arquitectura validado.
