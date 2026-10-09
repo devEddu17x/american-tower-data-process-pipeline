@@ -19,11 +19,12 @@ module "iam_to_emr_integration" {
   propagation_wait_seconds = 15
 }
 
-# Central Data Lake S3 Bucket
+# Central Data Lake S3 Bucket (Protected from accidental deletion)
 module "s3_datalake" {
-  source       = "../../modules/s3"
-  project_name = var.project_name
-  environment  = var.environment
+  source        = "../../modules/s3"
+  project_name  = var.project_name
+  environment   = var.environment
+  force_destroy = false
 }
 
 # Ephemeral SSH Key Pair Generation
@@ -48,6 +49,20 @@ resource "local_sensitive_file" "emr_private_key" {
   content         = tls_private_key.emr_ssh_key.private_key_pem
   filename        = "${path.module}/.ssh/${var.project_name}-${var.environment}-key.pem"
   file_permission = "0400"
+}
+
+# Securely publish the private key to SSM Parameter Store so all team members can fetch it
+resource "aws_ssm_parameter" "emr_ssh_private_key" {
+  name        = "/${var.project_name}/${var.environment}/emr_ssh_key"
+  description = "Private SSH key for EMR Master node access"
+  type        = "SecureString"
+  value       = tls_private_key.emr_ssh_key.private_key_pem
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
 }
 
 # S3 Artifacts Bucket & Bootstrap upload
@@ -75,6 +90,7 @@ locals {
 }
 
 module "emr" {
+  count                = var.enable_emr ? 1 : 0
   source               = "../../modules/emr"
   project_name         = var.project_name
   environment          = var.environment
@@ -98,9 +114,10 @@ module "emr" {
 
 # VS Code Remote-SSH Config Generation
 resource "local_file" "emr_ssh_config" {
+  count   = var.enable_emr ? 1 : 0
   content = <<-EOT
     Host emr-studio
-        HostName ${module.emr.master_public_dns}
+        HostName ${module.emr[0].master_public_dns}
         User hadoop
         IdentityFile ${abspath(local_sensitive_file.emr_private_key.filename)}
         StrictHostKeyChecking no
@@ -110,4 +127,5 @@ resource "local_file" "emr_ssh_config" {
 
   filename = "${path.module}/.ssh/config"
 }
+
 
