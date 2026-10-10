@@ -71,7 +71,12 @@ variable "core_instance_type" {
 variable "core_instance_count" {
   description = "Number of Core instances to provision (0 for single-node development)"
   type        = number
-  default     = 2
+  default     = 3
+
+  validation {
+    condition     = var.core_instance_count >= 0 && floor(var.core_instance_count) == var.core_instance_count
+    error_message = "core_instance_count must be a non-negative integer."
+  }
 }
 
 variable "idle_timeout" {
