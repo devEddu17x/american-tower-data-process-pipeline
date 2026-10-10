@@ -44,9 +44,14 @@ variable "core_instance_type" {
 }
 
 variable "core_instance_count" {
-  description = "Number of Core (worker) instances to provision"
+  description = "Number of Core worker instances provisioned when enable_emr is true. Any non-negative integer; 0 keeps a single master node."
   type        = number
-  default     = 2
+  default     = 3
+
+  validation {
+    condition     = var.core_instance_count >= 0 && floor(var.core_instance_count) == var.core_instance_count
+    error_message = "core_instance_count must be a non-negative integer."
+  }
 }
 
 variable "idle_timeout" {
