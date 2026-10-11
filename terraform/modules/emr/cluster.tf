@@ -31,11 +31,27 @@ resource "aws_emr_cluster" "cluster" {
     idle_timeout = var.idle_timeout
   }
 
+  configurations_json = jsonencode([
+    {
+      Classification = "spark-env"
+      Configurations = [
+        {
+          Classification = "export"
+          Properties = {
+            PYSPARK_PYTHON        = "/opt/american-tower/venv/bin/python"
+            PYSPARK_DRIVER_PYTHON = "/opt/american-tower/venv/bin/python"
+          }
+        }
+      ]
+    }
+  ])
+
   dynamic "bootstrap_action" {
     for_each = var.bootstrap_s3_path != null && var.bootstrap_s3_path != "" ? [1] : []
     content {
       name = "Install Custom Dependencies"
       path = var.bootstrap_s3_path
+      args = var.bootstrap_args
     }
   }
 
@@ -46,4 +62,20 @@ resource "aws_emr_cluster" "cluster" {
     ManagedBy                                  = "Terraform"
     "for-use-with-amazon-emr-managed-policies" = "true"
   }
+
+  lifecycle {
+    ignore_changes = [
+      os_release_label,
+      configurations_json
+    ]
+  }
+}
+
+resource "aws_emr_instance_group" "task_spot" {
+  count          = var.task_instance_count > 0 ? 1 : 0
+  cluster_id     = aws_emr_cluster.cluster.id
+  name           = "${var.project_name}-${var.environment}-task-spot"
+  instance_type  = var.task_instance_type
+  instance_count = var.task_instance_count
+  bid_price      = var.task_bid_price
 }
