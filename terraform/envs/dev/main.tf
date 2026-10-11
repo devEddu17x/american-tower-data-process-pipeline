@@ -90,10 +90,14 @@ module "emr" {
   instance_profile_arn = module.iam_to_emr_integration.instance_profile_arn
   key_pair_name        = local.selected_key_name
   bootstrap_s3_path    = "s3://${module.s3_datalake.artifacts_bucket_id}/${aws_s3_object.bootstrap_script.key}"
+  bootstrap_args       = [module.s3_datalake.artifacts_bucket_id]
   log_uri              = "s3://${module.s3_datalake.artifacts_bucket_id}/logs/"
   master_instance_type = var.master_instance_type
   core_instance_type   = var.core_instance_type
   core_instance_count  = var.core_instance_count
+  task_instance_type   = var.task_instance_type
+  task_instance_count  = var.task_instance_count
+  task_bid_price       = var.task_bid_price
   idle_timeout         = var.idle_timeout
 
   depends_on = [
@@ -112,6 +116,9 @@ resource "local_file" "emr_ssh_config" {
         StrictHostKeyChecking no
         UserKnownHostsFile /dev/null
         LogLevel ERROR
+        LocalForward 18080 ${module.emr[0].master_public_dns}:18080
+        LocalForward 4040 ${module.emr[0].master_public_dns}:4040
+        LocalForward 8088 ${module.emr[0].master_public_dns}:8088
   EOT
 
   filename = "${path.module}/.ssh/config"
