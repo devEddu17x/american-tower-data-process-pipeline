@@ -50,6 +50,12 @@ variable "bootstrap_s3_path" {
   default     = null
 }
 
+variable "bootstrap_args" {
+  description = "List of arguments to pass to the bootstrap action script"
+  type        = list(string)
+  default     = []
+}
+
 variable "release_label" {
   description = "EMR release version label"
   type        = string
@@ -90,4 +96,28 @@ variable "log_uri" {
   type        = string
   default     = null
 }
+
+variable "task_instance_type" {
+  description = "EC2 instance type for Task Spot worker nodes"
+  type        = string
+  default     = "m5.xlarge"
+}
+
+variable "task_instance_count" {
+  description = "Number of Task Spot worker instances to provision"
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.task_instance_count >= 0 && floor(var.task_instance_count) == var.task_instance_count
+    error_message = "task_instance_count must be a non-negative integer."
+  }
+}
+
+variable "task_bid_price" {
+  description = "Bid price for Task Spot instances in USD (e.g. 0.192). Null or string value."
+  type        = string
+  default     = "0.192"
+}
+
 
