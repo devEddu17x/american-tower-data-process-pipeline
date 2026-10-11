@@ -1,0 +1,34 @@
+{
+  "buckets": {
+    "bronze": "",
+    "silver": "",
+    "gold": "",
+    "operations": "",
+    "artifacts": ""
+  },
+  "inputs": {
+    "osiptel_cobertura": "",
+    "osiptel_estaciones": ""
+  },
+  "provenance": {
+    "osiptel_cobertura": {
+      "source_url": "https://www.datosabiertos.gob.pe/dataset/cobertura-de-servicio-m%C3%B3vil-por-empresa-operadora",
+      "downloaded_at": null,
+      "observation_period": null,
+      "period_evidence": null
+    },
+    "osiptel_estaciones": {
+      "source_url": "https://www.datosabiertos.gob.pe/dataset/cantidad-de-estaciones-base-por-tecnolog%C3%ADa-osiptel",
+      "downloaded_at": null,
+      "observation_period": null,
+      "period_evidence": null
+    }
+  },
+  "region": "us-east-1",
+  "transfer_partitions": 10,
+  "max_total_bytes": 34359738368,
+  "cache_root": "/mnt/american-tower-bronze",
+  "inei_layer": "DISTRITO",
+  "max_file_bytes": 2147483648,
+  "max_entries": 10000
+}
