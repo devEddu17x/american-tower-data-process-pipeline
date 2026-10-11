@@ -66,3 +66,26 @@ variable "enable_emr" {
   default     = true
 }
 
+variable "task_instance_type" {
+  description = "EC2 instance type for EMR Task Spot nodes"
+  type        = string
+  default     = "m5.xlarge"
+}
+
+variable "task_instance_count" {
+  description = "Number of Task Spot worker instances provisioned when enable_emr is true"
+  type        = number
+  default     = 8
+
+  validation {
+    condition     = var.task_instance_count >= 0 && floor(var.task_instance_count) == var.task_instance_count
+    error_message = "task_instance_count must be a non-negative integer."
+  }
+}
+
+variable "task_bid_price" {
+  description = "Bid price for Task Spot instances in USD (e.g. 0.192)"
+  type        = string
+  default     = "0.192"
+}
+
