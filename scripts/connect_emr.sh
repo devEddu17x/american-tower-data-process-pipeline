@@ -167,6 +167,9 @@ Host emr-studio
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
     LogLevel ERROR
+    LocalForward 18080 ${MASTER_DNS}:18080
+    LocalForward 4040 ${MASTER_DNS}:4040
+    LocalForward 8088 ${MASTER_DNS}:8088
 # END EMR-STUDIO AUTOMATION"
 
 # Si ya existe el bloque, reemplazarlo; si no, agregarlo al final
@@ -186,6 +189,15 @@ else
 fi
 
 echo -e "${GREEN}Configuración SSH actualizada exitosamente para 'Host emr-studio'.${NC}"
+
+# Mostrar URLs directas y locales
+echo -e "\n${CYAN}======================================================${NC}"
+echo -e "${CYAN}    Interfaces Web de Monitoreo (Spark & YARN)       ${NC}"
+echo -e "${CYAN}======================================================${NC}"
+echo -e "Spark History Server : ${YELLOW}http://${MASTER_DNS}:18080${NC}  (Local: http://localhost:18080)"
+echo -e "Spark Active App UI  : ${YELLOW}http://${MASTER_DNS}:4040${NC}   (Local: http://localhost:4040)"
+echo -e "YARN ResourceManager : ${YELLOW}http://${MASTER_DNS}:8088${NC}   (Local: http://localhost:8088)"
+echo -e "${CYAN}======================================================${NC}"
 
 # 5. Iniciar conexión
 echo -e "\n${CYAN}[4/4] Estableciendo conexión...${NC}"

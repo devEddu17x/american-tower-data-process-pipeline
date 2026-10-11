@@ -23,6 +23,20 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 - **Storage & Compute Decoupling:**
 - Compute is ephemeral. The HDFS on EBS storage terminates with the cluster.
 - Persistent scripts, artifacts, datasets, and bootstrap files reside in Amazon S3.
+- `enable_emr` toggle preserves all S3 Data Lake buckets while destroying EC2 compute resources to eliminate idle costs.
+
+- **Production Scaled Topology (11 Nodes / 44 vCPUs / 176 GB RAM):**
+- 1 Master node (`m5.xlarge`, On-Demand): 4 vCPUs, 16 GB RAM (YARN coordinator, PySpark driver, Jupyter kernel).
+- 2 Core nodes (`m5.xlarge`, On-Demand): 8 vCPUs, 32 GB RAM (HDFS distributed storage & execution).
+- 8 Task nodes (`m5.xlarge`, Spot): 32 vCPUs, 128 GB RAM (pure Spark worker execution, bid price $0.192 USD/hr).
+- Quota compliance: Exactly 12 / 16 Standard On-Demand vCPUs and 32 / 32 Standard Spot vCPUs. Zero quota violations.
+- Service-linked role `AWSServiceRoleForEC2Spot` active in AWS account.
+
+- **Ultra-Fast Bootstrap via S3 Virtualenv Cache:**
+- Full analytical geospatial stack (`apache-sedona==1.7.2`, `geopandas==1.0.1`, `rasterio==1.3.11`, `shapely==2.0.6`, `pyproj==3.6.1`, `pyogrio==0.10.0`, `pyarrow==17.0.0`, `openpyxl==3.1.5`, `boto3==1.42.97`) is pre-compiled and cached in `s3://${artifacts_bucket}/envs/american-tower-venv.tar.gz` (174 MB).
+- Nodes download and decompress the environment in ~3 seconds, bypassing pip compilation.
+- System tool `bsdtar` is installed via `sudo dnf install -y bsdtar` during bootstrap.
+- Jupyter kernel `American Tower - PySpark` is automatically registered for user `hadoop`.
 
 ### Data Lake Dedicated Buckets & Layout
 
@@ -45,90 +59,44 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 
 ```text
 .
-├── ansible/
-├── docs/
+├── notebooks/
+│   ├── 00_entorno_y_configuracion.ipynb  # Environment validation, S3 probe, dynamic EMR discovery
+│   └── 01_ingesta_bronze.ipynb           # Distributed ingestion across 10 worker nodes
 ├── scripts/
-│   └── bootstrap.sh              # EMR bootstrap actions (pip dependencies, etc.)
+│   ├── bootstrap.sh                      # EMR bootstrap action (S3 cache, bsdtar, PySpark venv)
+│   └── connect_emr.sh                    # Automated SSH, SSM key fetch, tunnels & VS Code Remote
 └── terraform/
-    ├── bootstrap/                # Foundational remote state backend (S3 bucket with native locking)
+    ├── bootstrap/                        # Remote state backend (S3 bucket with native locking)
     ├── envs/
-    │   └── dev/                  # Root orchestration (calls modules, defines tfvars/backend)
-    ├── global/                   # Persistent foundational resources
+    │   └── dev/                          # Root dev environment orchestration
     └── modules/
-        ├── networking/           # VPC, Subnets, IGW, S3 Endpoint, 3x EMR Security Groups [DONE]
-        ├── emr/                  # Target module: IAM roles, Instance Profile, EMR Cluster
-        ├── s3/                   # Data Lake S3 Bucket, prefixes, encryption and access policies
-        └── lambda/               # (Optional/Future: event triggers, Slack notifications)
-
+        ├── networking/                   # VPC, Subnet, IGW, S3 Gateway Endpoint, EMR Security Groups
+        ├── iam/                          # EMR Service Role, EC2 Role with S3FullAccess, Instance Profile
+        ├── integrations/iam_to_emr/      # IAM propagation safety sleep module
+        ├── s3/                           # Data Lake 5-bucket architecture with force_destroy = false
+        └── emr/                          # EMR Cluster (Master + Core) & Spot Task Instance Group
 ```
 
 ---
 
-## 4. Current Sprint: `terraform/modules/emr` Implementation
+## 4. Cluster Architecture & Operational Interfaces
 
-### Scope & Tasks
+### Web Monitoring & Tunneling Strategy
+Because AWS EMR enforces the strict account-level *Block Public Access* policy, web consoles cannot expose unauthenticated ports to the public internet (`0.0.0.0/0`). Connectivity is resolved via secure SSH port forwarding:
 
-1. **IAM Identity Layer:**
+| Interface | Remote Port | Local URL | Description |
+| :--- | :---: | :--- | :--- |
+| **Spark History Server** | `18080` | `http://localhost:18080` | Official Spark Web UI with persistent event logs, Bootstrap styling, DAG visualization, and real-time Incomplete Applications view. |
+| **YARN ResourceManager** | `8088` | `http://localhost:8088` | Cluster overview, live metrics, memory/vCPU allocation, and status of all 10 worker nodes. |
+| **Spark Driver UI** | `4040` | `http://localhost:4040` | Dynamic ephemeral port active only while a SparkSession is running (wrapped in YARN AmIpFilter). |
 
-- `aws_iam_role.emr_service_role`: Assumed by `elasticmapreduce.amazonaws.com`, managed policy `AmazonEMRServicePolicy_v2` or `service-role/AmazonEMRServicePolicy_v2`.
-- `aws_iam_role.emr_ec2_role`: Assumed by `ec2.amazonaws.com`, policies for basic EMR job execution and S3 read/write (`AmazonS3FullAccess` or scoped bucket access).
-- `aws_iam_instance_profile.emr_ec2_profile`: Wraps `emr_ec2_role`.
-
-2. **Artifact Delivery (S3 / Bootstrap):**
-
-- Upload `scripts/bootstrap.sh` to an S3 bucket via `aws_s3_object`.
-- Bootstrap script installs runtime Python packages: `pandas`, `numpy`, `matplotlib`, `seaborn`, `pyarrow`.
-
-3. **Cluster Engine (`aws_emr_cluster`):**
-
-- Release: `emr-7.1.0` (or latest compatible 7.x).
-- Applications: `["Hadoop", "Spark"]`.
-- Bind `ec2_attributes` to inputs exported by `modules/networking`:
-- `subnet_id = var.public_subnet_id`
-- `emr_managed_master_security_group = var.emr_master_sg_id`
-- `emr_managed_slave_security_group = var.emr_slave_sg_id`
-- `service_access_security_group = var.emr_service_access_sg_id`
-- `instance_profile = aws_iam_instance_profile.emr_ec2_profile.arn`
-- `key_name = var.key_pair_name`
-
-- Dynamic/configurable node topology:
-- `master_instance_group`: count = 1, type = `var.master_instance_type`.
-- `core_instance_group`: count = `var.core_instance_count`, type = `var.core_instance_type` (can be 0 or omitted when running single-node EDA).
-
-- Configuration block:
-
-```hcl
-auto_termination_policy {
-  idle_timeout = 3600
-}
-
-```
-
-### Required Variables (`terraform/modules/emr/variables.tf`)
-
-- `project_name`: String identifier.
-- `environment`: String (e.g., `dev`).
-- `public_subnet_id`: String.
-- `emr_master_sg_id`: String.
-- `emr_slave_sg_id`: String.
-- `emr_service_access_sg_id`: String.
-- `key_pair_name`: String.
-- `bootstrap_bucket_id`: String (S3 bucket for bootstrapping).
-- `master_instance_type`: String (default: `"m5.xlarge"`).
-- `core_instance_type`: String (default: `"m5.xlarge"`).
-- `core_instance_count`: Number (default: `1`).
-
-### Required Outputs (`terraform/modules/emr/outputs.tf`)
-
-- `cluster_id`: ID of the created EMR cluster.
-- `master_public_dns`: Public DNS name of the Master node.
-- `ssh_connection_string`: Computed string: `ssh -i <path-to-key> hadoop@<master_public_dns>`.
+*Note on LocalForward routing:* In Amazon EMR, YARN binds to the private VPC IP rather than loopback `127.0.0.1`. The SSH tunnels in `connect_emr.sh` and Terraform's `.ssh/config` forward directly to `${MASTER_DNS}` (which resolves internally to the private IP), preventing connection rejections.
 
 ---
 
 ## 5. Agent Operational Standards
 
-- **Terraform Formatting & Validation:** Always validate HCL with `terraform fmt -check` and `terraform validate`.
-- **Explicit Resource Dependencies:** Use `depends_on` when IAM policies or S3 objects must exist before the cluster initializes.
-- **No Hardcoded Credentials:** Never hardcode ARNs, IPs, or key pairs; use input variables or dynamic data sources.
-- **Concise HCL:** Keep definitions modular, DRY, and well-tagged (`Project = "big-data"`, `ManagedBy = "Terraform"`).
+- **Lifecycle Safety:** Never modify `core_instance_group` or `configurations_json` without checking `lifecycle { ignore_changes = [os_release_label, configurations_json] }` to avoid unwanted cluster destruction.
+- **Quota Awareness:** Keep On-Demand vCPUs under 16 and Spot vCPUs under 32 in `us-east-1`.
+- **Terraform Formatting & Validation:** Always validate HCL with `terraform fmt` and `terraform validate`.
+- **No Hardcoded Credentials:** Never hardcode ARNs, IPs, or key pairs; use input variables, SSM Parameter Store, or dynamic instance metadata.
