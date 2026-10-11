@@ -21,7 +21,8 @@ fi
 
 echo "Iniciando configuración de dependencias en $(hostname)..."
 
-# 1. Crear directorio base en /opt con permisos de sudo para hadoop
+# 1. Instalar utilitarios del sistema y crear directorio base en /opt
+sudo dnf install -y bsdtar
 sudo mkdir -p "${INSTALL_DIR}"
 sudo chown -R hadoop:hadoop "${INSTALL_DIR}"
 
