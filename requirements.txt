@@ -1,0 +1,12 @@
+boto3
+requests
+numpy
+pandas
+shapely
+pyproj
+pyogrio
+geopandas
+apache-sedona
+pyarrow
+rasterio
+openpyxl
