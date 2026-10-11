@@ -1,0 +1,75 @@
+{
+  "buckets": {
+    "artifacts": "american-tower-dev-artifacts-74d32893263161eaef72faf57a",
+    "bronze": "american-tower-dev-bronze-b7f9699786f4c119558b9d30f9",
+    "gold": "american-tower-dev-gold-00f4f2b4cf37bac32a9ec520ee",
+    "operations": "american-tower-dev-operations-1dd72256126674a5893dfca3df",
+    "silver": "american-tower-dev-silver-2ad71fded155d2bd52df8f836e"
+  },
+  "inputs": {
+    "osiptel_cobertura": "https://www.datosabiertos.gob.pe/sites/default/files/Cobertura%20m%C3%B3vil%20por%20empresa%20operadora.csv",
+    "osiptel_cobertura_name": "Cobertura móvil por empresa operadora.csv",
+    "osiptel_estaciones": "datasets/osiptel/archivo_estaciones.xlsx",
+    "osiptel_estaciones_name": "osiptel_estaciones.xlsx",
+    "inei_departamento": "https://ide.inei.gob.pe/files/Departamento.rar",
+    "inei_provincia": "https://ide.inei.gob.pe/files/Provincia.rar",
+    "inei_distrito": "https://ide.inei.gob.pe/files/Distrito.rar"
+  },
+  "region": "us-east-1",
+  "periods": [
+    "2019Q1",
+    "2019Q2",
+    "2019Q3",
+    "2019Q4",
+    "2020Q1",
+    "2020Q2",
+    "2020Q3",
+    "2020Q4",
+    "2021Q1",
+    "2021Q2",
+    "2021Q3",
+    "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
+    "2022Q4",
+    "2023Q1",
+    "2023Q2",
+    "2023Q3",
+    "2023Q4",
+    "2024Q1",
+    "2024Q2",
+    "2024Q3",
+    "2024Q4",
+    "2025Q1",
+    "2025Q2",
+    "2025Q3",
+    "2025Q4",
+    "2026Q1"
+  ],
+  "max_file_bytes": 2147483648,
+  "max_total_bytes": 34359738368,
+  "min_free_bytes": 2147483648,
+  "max_entries": 10000,
+  "batch_size": 100,
+  "transfer_partitions": 10,
+  "cache_root": "/mnt/american-tower-bronze",
+  "inei_layer": "DISTRITO",
+  "provenance": {
+    "osiptel_cobertura": {
+      "source_url": "https://www.datosabiertos.gob.pe/dataset/cobertura-de-servicio-m%C3%B3vil-por-empresa-operadora",
+      "downloaded_at": null,
+      "observation_period": "202303",
+      "period_evidence": "Ficha auditada docs/3/3.1/3.1.2.osiptel-servicio-movil-empresa/dataset.md; inspección del 2026-10-08 que documentó PERIODO=202303."
+    },
+    "osiptel_estaciones": {
+      "source_url": "https://www.datosabiertos.gob.pe/dataset/cantidad-de-estaciones-base-por-tecnolog%C3%ADa-osiptel",
+      "downloaded_at": null,
+      "observation_period": null,
+      "period_evidence": "El período de observación no está determinado; las fechas del portal no se interpretan como fechas de observación.",
+      "original_download_date_unknown": true,
+      "original_sha256": "8d4e62daf1088a398ec608366f48559dac763141b93cf9530513466b3ec3bd82",
+      "acquisition_note": "Original disponible en datasets/osiptel/archivo_estaciones.xlsx; 740518 bytes y 11099 registros concordantes con la ficha institucional auditada. Fecha original de descarga desconocida; la incorporación a Bronze registra su propio instante."
+    }
+  }
+}
