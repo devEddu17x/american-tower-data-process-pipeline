@@ -69,12 +69,27 @@ No se admiten supuestos inventados ni valores «0». La línea base se sostiene 
 | `artifacts` (`models/`) | Modelos y transformaciones, cuando se desarrolle el punto 4. |
 | `artifacts` (`logs/`) | Registros de ejecución y eventos de Spark y EMR. |
 | `artifacts` (`scripts/`) | Scripts de bootstrap y dependencias del clúster. |
-- **Motor unificado de cómputo:** Amazon EMR sobre EC2 (release `emr-7.10.0`) con **Apache Spark 3.5.5**, **Apache Hadoop/YARN 3.4.1** y **Apache Sedona 1.7.2**.
+- **Motor unificado de cómputo y topología escalada:**
+  - Amazon EMR sobre EC2 (release `emr-7.1.0`) con **Apache Spark 3.5.0**, **Apache Hadoop/YARN 3.3.6** y **Apache Sedona 1.7.2**.
+  - Topología híbrida de **11 nodos totales (44 vCPUs y 176 GB de memoria RAM)** distribuidos para procesamiento masivo distribuido:
+    - 1 Nodo maestro (`m5.xlarge`, On-Demand): Coordinación de YARN, ejecución del driver PySpark y servidor de libretas interactivas.
+    - 2 Nodos de núcleo (`m5.xlarge`, On-Demand): Almacenamiento distribuido HDFS y soporte de cómputo permanente.
+    - 8 Nodos de tareas (`m5.xlarge`, Spot): Cómputo exclusivo sin persistencia HDFS con precio de oferta fijado al 100 % del precio base (\$0.192 USD) para mitigar interrupciones por volatilidad.
+  - Cumplimiento estricto de las cuotas de cómputo auditadas en la cuenta: 12 de 16 vCPUs On-Demand consumidas (25 % de margen libre) y 32 de 32 vCPUs Spot consumidas. Habilitación del rol de servicio institucional `AWSServiceRoleForEC2Spot`.
+- **Aceleración del arranque y distribución de dependencias:**
+  - Almacenamiento del entorno virtual compilado en `s3://<artifacts_bucket>/envs/american-tower-venv.tar.gz` (174 MB), reduciendo el tiempo de inicialización de dependencias de 15 minutos a aproximadamente 3 segundos por nodo.
+  - Inclusión del utilitario del sistema `bsdtar` y homologación de bibliotecas geoespaciales (Apache Sedona 1.7.2, GeoPandas 1.0.1, Rasterio 1.3.11, Shapely 2.0.6, PyProj 3.6.1, PyArrow 17.0.0, OpenPyXL 3.1.5 y Boto3).
+  - Registro automático del kernel de Jupyter `American Tower - PySpark` en `/home/hadoop/.local/share/jupyter/kernels/american-tower`.
+- **Conectividad segura y supervisión de trabajos:**
+  - Cumplimiento de la directriz de AWS EMR de bloqueo de acceso público (*Block Public Access*), manteniendo únicamente el puerto 22 abierto hacia el exterior.
+  - Automatización de acceso mediante [scripts/connect_emr.sh](file:///home/eddu/dev/american-tower-data-process-pipeline/scripts/connect_emr.sh), obteniendo la llave privada desde AWS Systems Manager Parameter Store (`/american-tower/dev/emr_ssh_key`) e iniciando Visual Studio Code Remote-SSH.
+  - Túneles seguros SSH (`LocalForward`) dirigidos hacia el nombre DNS del nodo maestro para evitar rechazos por enlace de red en YARN.
+  - Supervisión operativa mediante Spark History Server en el puerto local 18080 (interfaz gráfica completa y oficial de Spark con persistencia de eventos) y YARN ResourceManager en el puerto local 8088.
 - **Decisión de diseño para la Ingesta (Nodo 1 del Diagrama):**
   - **Ratificación:** Se utiliza estrictamente **Amazon EMR (Spark)** para la ingesta, manteniendo total fidelidad con el diagrama de arquitectura validado.
   - **Estrategia técnica interna en EMR (Paso 1):**
     - _Fuentes HTTP institucionales (OSIPTEL CSV/XLSX, INEI GPKG, WorldPop GeoTIFF):_ Un paso de comando/Python en el nodo primario de EMR descarga los archivos en streaming hacia S3 Bronze, calcula la suma de comprobación criptográfica SHA-256 en tiempo real y genera el archivo formal `manifest.json`.
-    - _Fuentes masivas en AWS Open Data (Ookla y Sentinel-2):_ Una aplicación PySpark distribuida monta los depósitos públicos en `us-west-2` y transfiere selectivamente las particiones trimestrales de estudio hacia S3 Bronze en `us-east-1`, evitando la copia de millones de registros mundiales redundantes.
+    - _Fuentes masivas en AWS Open Data (Ookla y Sentinel-2):_ Una aplicación PySpark distribuida monta los depósitos públicos en `us-west-2` y transfiere selectivamente las particiones trimestrales de estudio hacia S3 Bronze en `us-east-1`, dividiendo el procesamiento entre los 10 nodos trabajadores simultáneos.
     - _Aislamiento funcional:_ La ingesta culmina dejando los datos crudos asegurados en la zona Bronze con su marcador de éxito `_SUCCESS`, permitiendo que el paso de procesamiento pesado hacia Silver (Paso 3 con Apache Sedona) opere de forma desacoplada.
 - **Catálogo de metadatos:** AWS Glue Data Catalog.
 - **Consulta analítica:** Amazon Athena (motor v3) ejecutando consultas serverless sobre tablas Gold.
@@ -85,8 +100,8 @@ No se admiten supuestos inventados ni valores «0». La línea base se sostiene 
 - **Visualización:** Amazon QuickSight consumiendo vistas de Athena.
 - **Control financiero y costos:**
   - Presupuesto mensual estimado (AWS Pricing Calculator): **$320.99 USD/mes**.
-  - Gasto real acumulado (Semanas 2 a 7): **$18.65 USD** [valor auditable a la fecha de corte].
-  - Justificación del bajo costo: Gestión mediante Infraestructura como Código (IaC) y clústeres efímeros de EMR que se crean y destruyen bajo demanda para las pruebas, sin recursos ociosos.
+  - Costo por hora del clúster de 11 nodos: Aproximadamente **$1.35 USD/hora** (frente a un saldo de créditos auditado de ~$95 USD).
+  - Justificación del bajo costo: Gestión mediante Infraestructura como Código (IaC) y clústeres efímeros de EMR que se crean y destruyen bajo demanda mediante el interruptor `enable_emr`, sin recursos ociosos.
 
 ---
 
@@ -144,9 +159,9 @@ american-tower-data-process-pipeline/docs/
 - **Capítulo 1 y Capítulo 2:** Concluidos íntegramente y auditados.
 - **Sección 3.1 (Fuentes de datos y ficha de procedencia):** Concluida. Cada fuente cuenta con ficha institucional, enlaces directos, cantidad de registros, volumen en disco y diccionario de variables auditado.
 - **Sección 3.2 (Ingesta y organización del Data Lake):**
-  - _Decisión tomada:_ Se ratifica el uso de **Amazon EMR (Spark)** para la ingesta, ejecutado mediante pasos híbridos (scripts Python en nodo primario para descargas web + PySpark para sincronización de Parquet/COG de S3 a S3).
-  - _Estructura definida para S3 Bronze:_ Particionamiento jerárquico por fuente y fecha (`bronze/<fuente>/<particion>/`) con manifiesto `manifest.json` (SHA-256, tamaño, fecha UTC, URL de procedencia y motor de ejecución).
-  - _Siguiente acción en el nuevo repositorio:_ Redactar el documento final de la sección 3.2 y codificar los scripts/pasos de EMR para la ingesta.
+  - _Infraestructura de cómputo lista:_ Clúster híbrido EMR de 11 nodos (1 Master + 2 Core + 8 Task Spot) aprovisionado, validado y sincronizado con Terraform. Caché de dependencias en S3 (`american-tower-venv.tar.gz`) reduciendo el arranque a 3 segundos.
+  - _Validación de entorno:_ Libreta [notebooks/00_entorno_y_configuracion.ipynb](file:///home/eddu/dev/american-tower-data-process-pipeline/notebooks/00_entorno_y_configuracion.ipynb) validada con soporte para `bsdtar`, detección automática del `cluster_id` desde metadatos locales y pruebas satisfactorias de lectura/escritura en S3.
+  - _Siguiente acción:_ Ejecutar la libreta `notebooks/01_ingesta_bronze.ipynb` para descargar las 30 particiones trimestrales de Ookla distribuidas entre los 10 nodos trabajadores y redactar el documento final de la sección 3.2.
 
 ---
 
