@@ -140,13 +140,16 @@ american-tower-data-process-pipeline/docs/
 │   │   ├── 3.1.4.inei/dataset.md
 │   │   ├── 3.1.5.world-pop/dataset.md
 │   │   └── 3.1.6.sentinel/dataset.md
-│   ├── 3.2/                                    # 3.2 Ingesta y organización del Data Lake (ACTUAL)
-│   ├── 3.3/                                    # 3.3 Procesamiento y limpieza (PENDIENTE)
-│   ├── 3.4/                                    # 3.4 Control de calidad de los datos (PENDIENTE)
-│   ├── 3.5/                                    # 3.5 Almacenamiento de datos procesados (PENDIENTE)
-│   ├── 3.6/                                    # 3.6 Optimización del rendimiento (PENDIENTE)
-│   ├── 3.7/                                    # 3.7 Prueba de escalabilidad (PENDIENTE)
-│   └── 3.8/                                    # 3.8 Seguridad de la plataforma (PENDIENTE)
+│   ├── 3.2/                                    # 3.2 Ingesta y organización del Data Lake (COMPLETADO)
+│   ├── 3.3/                                    # 3.3 Procesamiento y limpieza (COMPLETADO)
+│   ├── 3.4/                                    # 3.4 Control de calidad de los datos (COMPLETADO)
+│   ├── 3.5/                                    # 3.5 Almacenamiento de datos procesados (COMPLETADO)
+│   ├── 3.6/                                    # 3.6 Optimización del rendimiento (COMPLETADO)
+│   ├── 3.7/                                    # 3.7 Prueba de escalabilidad (COMPLETADO)
+│   └── 3.8/                                    # 3.8 Seguridad de la plataforma (COMPLETADO)
+├── 4/                                          # Capítulo 4: Análisis, modelado y capa de consumo (EN CURSO)
+│   ├── 4.1/4.1.analisis-exploratorio-datos.md  # 4.1 Análisis exploratorio de datos (COMPLETADO)
+│   └── 4.2/4.2.modelo-base.md                  # 4.2 Modelo base (COMPLETADO)
 ├── fuentes.md                                  # Descripcion breve y links de descarga de datasets
 ├── guia.md                                     # Rúbrica y estructura académica UPAO
 └── AGENTS.md                                   # Este manual de contexto operativo
@@ -157,11 +160,20 @@ american-tower-data-process-pipeline/docs/
 ## 6. Estado Actual del Proyecto y Próximos Pasos
 
 - **Capítulo 1 y Capítulo 2:** Concluidos íntegramente y auditados.
-- **Sección 3.1 (Fuentes de datos y ficha de procedencia):** Concluida. Cada fuente cuenta con ficha institucional, enlaces directos, cantidad de registros, volumen en disco y diccionario de variables auditado.
-- **Sección 3.2 (Ingesta y organización del Data Lake):**
-  - _Infraestructura de cómputo lista:_ Clúster híbrido EMR de 11 nodos (1 Master + 2 Core + 8 Task Spot) aprovisionado, validado y sincronizado con Terraform. Caché de dependencias en S3 (`american-tower-venv.tar.gz`) reduciendo el arranque a 3 segundos.
-  - _Validación de entorno:_ Libreta [notebooks/00_entorno_y_configuracion.ipynb](file:///home/eddu/dev/american-tower-data-process-pipeline/notebooks/00_entorno_y_configuracion.ipynb) validada con soporte para `bsdtar`, detección automática del `cluster_id` desde metadatos locales y pruebas satisfactorias de lectura/escritura en S3.
-  - _Siguiente acción:_ Ejecutar la libreta `notebooks/01_ingesta_bronze.ipynb` para descargar las 30 particiones trimestrales de Ookla distribuidas entre los 10 nodos trabajadores y redactar el documento final de la sección 3.2.
+- **Capítulo 3 (Pipeline de Datos de Extremo a Extremo):** Concluido y verificado empíricamente al 100 % (Secciones 3.1 a 3.8).
+  - 3.2: 64 objetos auditados con sumas SHA-256 en S3 Bronze.
+  - 3.3, 3.4 y 3.5: Pipeline en EMR con 482,347 registros conformes (99.99 %), 21 registros en cuarentena y tablón Gold con 45,360 observaciones en Parquet Snappy particionado.
+  - 3.6: Broadcast Hash Join redujo el tiempo de integración en un 37.39 % (1.62 s vs. 2.58 s, 1.60x de aceleración).
+  - 3.7: Prueba factorial de escalabilidad completada con respuesta lineal en 1x (2.25 s), 5x (2.43 s), 10x (3.20 s) y 100x (29.29 s sobre 48.2M registros). Se determinó empíricamente el límite de capacidad física en 1,000x (~482M registros) debido al desbordamiento de memoria Java Heap en el nodo maestro por la complejidad del grafo DAG (47,000 tareas).
+  - 3.8: Seguridad integral (IAM, VPC privada, EMR Block Public Access, SSE-S3 AES-256 y AWS SSM Parameter Store).
+- **Capítulo 4 (Hito Parcial Semana 7: Subsecciones 4.1 y 4.2):**
+  - 4.1: EDA sobre datos limpios de Gold respondiendo a las 3 preguntas estratégicas, con 3 gráficos de alta resolución (`eda_1_velocidad_departamentos.png`, `eda_2_poblacion_vs_estaciones.png`, `eda_3_evolucion_temporal.png`) guardados en `docs/images/`.
+  - 4.2: Modelo Base con `RandomForestRegressor` en Spark MLlib sobre 43,470 observaciones supervisadas con lead $t+1$. Partición cronológica estricta (Train: 2019-2023 con 28,350 filas; Test: 2024 con 7,560 filas). Declaración formal de la Línea Base Técnica: MAE = 1.35 Mbps, $R^2$ = 0.9603 frente al modelo ingenuo, con ranking de importancia donde Latencia (28.6 %) y Estaciones Base 4G (27.5 %) explican más del 56 % del rendimiento.
+- **Libretas del Pipeline:**
+  - `notebooks/01_ingesta_bronze_refactorizada.ipynb`: Ingesta cruda a Bronze.
+  - `notebooks/02_pipeline_limpieza_calidad_almacenamiento.ipynb`: Limpieza, calidad y persistencia en Silver y Gold.
+  - `notebooks/03_optimizacion_y_escalabilidad.ipynb`: Medición de optimización Broadcast y escalabilidad factorial hasta 1000x.
+  - `notebooks/04_analisis_exploratorio_y_modelo_base.ipynb`: EDA con visualizaciones y Modelo Base de MLlib.
 
 ---
 
