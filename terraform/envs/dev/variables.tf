@@ -122,7 +122,7 @@ variable "sagemaker_image_tag" {
 variable "sagemaker_memory_mb" {
   description = "CPU Serverless Inference memory in MB (1024 to 6144)"
   type        = number
-  default     = 2048
+  default     = 3072
 }
 
 variable "sagemaker_max_concurrency" {
