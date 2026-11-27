@@ -27,6 +27,18 @@ module "s3_datalake" {
   force_destroy = false
 }
 
+# Consumption Catalog & Analytical Query Layer (Glue Data Catalog + Athena + QuickSight)
+module "catalog" {
+  source                = "../../modules/catalog"
+  project_name          = var.project_name
+  environment           = var.environment
+  gold_bucket_id        = module.s3_datalake.gold_bucket_id
+  gold_bucket_arn       = module.s3_datalake.bucket_arns["gold"]
+  operations_bucket_id  = module.s3_datalake.operations_bucket_id
+  operations_bucket_arn = module.s3_datalake.bucket_arns["operations"]
+  gold_run_id           = var.gold_run_id
+}
+
 # Ephemeral SSH Key Pair Generation
 resource "tls_private_key" "emr_ssh_key" {
   algorithm = "RSA"
@@ -65,12 +77,40 @@ resource "aws_ssm_parameter" "emr_ssh_private_key" {
   }
 }
 
-# Bootstrap script upload to artifacts bucket
+# Bootstrap script upload to artifacts bucket (S3 key stays unchanged for EMR stability)
 resource "aws_s3_object" "bootstrap_script" {
   bucket = module.s3_datalake.artifacts_bucket_id
   key    = "scripts/bootstrap.sh"
-  source = "${path.module}/../../../scripts/bootstrap.sh"
-  etag   = filemd5("${path.module}/../../../scripts/bootstrap.sh")
+  source = "${path.module}/../../services/emr/bootstrap.sh"
+  etag   = filemd5("${path.module}/../../services/emr/bootstrap.sh")
+}
+
+# Incremental Ookla PySpark job script uploaded to artifacts bucket for EMR Steps
+resource "aws_s3_object" "incremental_ookla_script" {
+  bucket = module.s3_datalake.artifacts_bucket_id
+  key    = "scripts/process_incremental_ookla.py"
+  source = "${path.module}/../../services/emr/process_incremental_ookla.py"
+  etag   = filemd5("${path.module}/../../services/emr/process_incremental_ookla.py")
+}
+
+# Event-driven Bronze -> EMR Step trigger (S3 incoming/ookla/*.parquet -> Lambda -> EMR Step -> Gold -> QuickSight)
+module "bronze_trigger" {
+  source                    = "../../modules/lambda"
+  project_name              = var.project_name
+  environment               = var.environment
+  source_file_path          = "${path.module}/../../services/lambda/bronze-to-emr-trigger/trigger_emr.py"
+  bronze_bucket_id          = module.s3_datalake.bronze_bucket_id
+  bronze_bucket_arn         = module.s3_datalake.bucket_arns["bronze"]
+  silver_bucket_id          = module.s3_datalake.silver_bucket_id
+  gold_bucket_id            = module.s3_datalake.gold_bucket_id
+  operations_bucket_id      = module.s3_datalake.operations_bucket_id
+  incremental_script_s3_uri = "s3://${module.s3_datalake.artifacts_bucket_id}/${aws_s3_object.incremental_ookla_script.key}"
+  bronze_manifest_uri       = "s3://${module.s3_datalake.operations_bucket_id}/run_id=${var.bronze_run_id}/bronze/_SUCCESS.json"
+  silver_manifest_uri       = "s3://${module.s3_datalake.operations_bucket_id}/run_id=${var.silver_run_id}/silver/_SUCCESS.json"
+  gold_run_id               = var.gold_run_id
+  quicksight_dataset_id     = module.catalog.quicksight_data_set_id
+
+  depends_on = [aws_s3_object.incremental_ookla_script]
 }
 
 # EMR Cluster Engine
