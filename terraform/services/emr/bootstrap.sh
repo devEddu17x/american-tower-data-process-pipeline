@@ -71,6 +71,8 @@ if [[ "$CACHE_RESTORED" = false ]]; then
         pyarrow==17.0.0 \
         rasterio==1.3.11 \
         openpyxl==3.1.5 \
+        matplotlib==3.9.4 \
+        scipy==1.13.1 \
         findspark==2.0.1 \
         ipykernel==6.29.5
 
