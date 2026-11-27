@@ -60,7 +60,7 @@ variable "model_data_url" {
 variable "serverless_memory_mb" {
   description = "CPU Serverless Inference memory in MB (1024, 2048, 3072, 4096, 5120, or 6144)"
   type        = number
-  default     = 2048
+  default     = 3072
 
   validation {
     condition     = contains([1024, 2048, 3072, 4096, 5120, 6144], var.serverless_memory_mb)
