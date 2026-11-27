@@ -95,7 +95,7 @@ El pipeline opera exclusivamente sobre fuentes publicas institucionales verifica
 
 ---
 
-## 5. Orden de Ejecucion del Pipeline (5 Libretas)
+## 5. Orden de Ejecucion del Pipeline (6 Libretas)
 
 Las libretas en `notebooks/` deben ejecutarse en orden en el nodo primario de EMR con el kernel **American Tower - PySpark**. Cada etapa publica un manifiesto `_SUCCESS.json` en el bucket `operations` que sirve como entrada trazable para la siguiente:
 
@@ -108,6 +108,7 @@ Las libretas en `notebooks/` deben ejecutarse en orden en el nodo primario de EM
         |
         +--> 04_optimizacion_y_escalabilidad.ipynb      --> Benchmark Broadcast vs. Shuffle y escala 1x/10x/100x
         +--> 05_analisis_exploratorio_y_modelo_base.ipynb --> EDA (2020-2024), 6 graficas y Modelo Base MLlib
+        +--> 06_modelo_gbt_regressor.ipynb              --> GBTRegressor (Duan), estabilidad, mapa y predicciones Gold
 ```
 
 ### 1. Ingesta Bronze (`notebooks/01_ingesta_bronze.ipynb`)
@@ -138,6 +139,12 @@ Construye y valida dos productos analiticos en Parquet Snappy:
   * Validacion 2023: Persistencia MAE **13.28 Mbps** vs. Regresion lineal MAE **11.64 Mbps** (RMSE 19.08, R2 = 0.028).
   * Prueba 2024: Persistencia MAE **14.65 Mbps** vs. Regresion lineal MAE **13.03 Mbps** (RMSE 20.22, R2 = -0.083, sesgo -7.68 Mbps).
 
+### 6. Modelo GBTRegressor e Indice de Preseleccion Territorial (`notebooks/06_modelo_gbt_regressor.ipynb`)
+* **Modelo Spark MLlib (`GBTRegressor`):** Entrenado sobre crecimiento logaritmico ponderado por `log1p(tests)` con calibracion de Duan integrada en `SQLTransformer`.
+  * Evaluacion cronologica en Prueba 2024 (todos los pares, n=5,666): MAE **11.94 Mbps**, RMSE **19.17 Mbps**, R2 = **+0.0275**; en distritos con suficiencia (`tests >= 10`, n=3,990): MAE **9.98 Mbps**, RMSE **14.77 Mbps**, sesgo **-0.77 Mbps**, R2 = **+0.0845**.
+  * Modelo productivo reentrenado sobre 35,557 pares historicos hasta `2026-T1`, guardado en `s3://<artifacts>/models/gbt_regressor/` y publicado en `s3://<gold>/predicciones_modelos/modelo_gbt_regressor.parquet` (1,564 predicciones para `2026-T2`, delta promedio **+1.99 Mbps**).
+* **Priorizacion y estabilidad:** Indice territorial con criterio de suficiencia, estabilidad temporal (`2025-T4` vs `2026-T1`, 72 % overlap Top 50, Spearman 0.8389), sensibilidad de pesos (86-94 % overlap Top 50) y mapa distrital del Peru.
+
 ---
 
 ## 6. Monitoreo y Verificacion Operativa
@@ -165,12 +172,14 @@ american-tower-data-process-pipeline/
 │   ├── 02_silver_limpieza_y_calidad.ipynb
 │   ├── 03_gold_integracion_distrital.ipynb
 │   ├── 04_optimizacion_y_escalabilidad.ipynb
-│   └── 05_analisis_exploratorio_y_modelo_base.ipynb
+│   ├── 05_analisis_exploratorio_y_modelo_base.ipynb
+│   └── 06_modelo_gbt_regressor.ipynb
 ├── scripts/
 │   ├── connect_emr.sh                          # Conexion SSH automatica y tunelaje (operador)
 │   └── rollback_quarter.sh                     # Rollback de trimestre incremental (operador)
-├── terraform/                                  # Infraestructura como Codigo (VPC, S3, IAM, EMR, Catalog, Lambda)
-│   └── services/                               # Codigo desplegado en servicios AWS (EMR y Lambda)
+├── terraform/                                  # Infraestructura como Codigo (VPC, S3, IAM, EMR, Catalog, Lambda, SageMaker)
+│   ├── modules/                                # Modulos HCL puros
+│   └── services/                               # Codigo desplegado en servicios AWS (EMR, Lambda y SageMaker)
 ├── AGENTS.md                                   # Contexto operativo del proyecto
 └── README.md                                   # Guia de reproduccion desde cero
 ```
