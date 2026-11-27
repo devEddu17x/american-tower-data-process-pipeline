@@ -113,6 +113,23 @@ module "bronze_trigger" {
   depends_on = [aws_s3_object.incremental_ookla_script]
 }
 
+# SageMaker Serverless Inference (CPU, $0 idle) + ECR repository + IAM Execution Role
+module "sagemaker" {
+  source                     = "../../modules/sagemaker"
+  project_name               = var.project_name
+  environment                = var.environment
+  aws_region                 = var.aws_region
+  artifacts_bucket_id        = module.s3_datalake.artifacts_bucket_id
+  artifacts_bucket_arn       = module.s3_datalake.bucket_arns["artifacts"]
+  gold_bucket_id             = module.s3_datalake.gold_bucket_id
+  gold_bucket_arn            = module.s3_datalake.bucket_arns["gold"]
+  gold_run_id                = var.gold_run_id
+  enable_sagemaker           = var.enable_sagemaker
+  inference_image_tag        = var.sagemaker_image_tag
+  serverless_memory_mb       = var.sagemaker_memory_mb
+  serverless_max_concurrency = var.sagemaker_max_concurrency
+}
+
 # EMR Cluster Engine
 locals {
   selected_key_name = var.key_pair_name != null ? var.key_pair_name : aws_key_pair.emr_key_pair[0].key_name

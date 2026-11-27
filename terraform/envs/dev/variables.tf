@@ -107,4 +107,28 @@ variable "silver_run_id" {
   default     = "20261125T072542Z-e92a810559"
 }
 
+variable "enable_sagemaker" {
+  description = "Toggle to provision the SageMaker Serverless Inference Endpoint (keep false until Docker image is pushed to ECR)"
+  type        = bool
+  default     = false
+}
+
+variable "sagemaker_image_tag" {
+  description = "Docker image tag in ECR for SageMaker Serverless Inference"
+  type        = string
+  default     = "latest"
+}
+
+variable "sagemaker_memory_mb" {
+  description = "CPU Serverless Inference memory in MB (1024 to 6144)"
+  type        = number
+  default     = 2048
+}
+
+variable "sagemaker_max_concurrency" {
+  description = "Maximum concurrent invocations for SageMaker Serverless Inference"
+  type        = number
+  default     = 5
+}
+
 

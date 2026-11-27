@@ -143,5 +143,20 @@ output "bronze_incoming_s3_uri" {
   value       = module.bronze_trigger.incoming_s3_uri
 }
 
+output "sagemaker_ecr_repository_url" {
+  description = "Amazon ECR repository URL for the CPU inference Docker image"
+  value       = module.sagemaker.ecr_repository_url
+}
+
+output "sagemaker_execution_role_arn" {
+  description = "IAM Execution Role ARN for SageMaker Serverless Inference"
+  value       = module.sagemaker.sagemaker_execution_role_arn
+}
+
+output "sagemaker_endpoint_name" {
+  description = "Active SageMaker Serverless Endpoint name (null when enable_sagemaker = false)"
+  value       = module.sagemaker.sagemaker_endpoint_name
+}
+
 
 
