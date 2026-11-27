@@ -80,6 +80,24 @@ resource "aws_iam_role_policy_attachment" "emr_ec2_s3_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
 }
 
+data "aws_iam_policy_document" "emr_ec2_quicksight_refresh" {
+  statement {
+    sid    = "TriggerQuickSightRefresh"
+    effect = "Allow"
+    actions = [
+      "quicksight:CreateIngestion",
+      "quicksight:DescribeIngestion"
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "emr_ec2_quicksight_refresh" {
+  name   = "${var.project_name}-${var.environment}-emr-ec2-quicksight-refresh"
+  role   = aws_iam_role.emr_ec2_role.id
+  policy = data.aws_iam_policy_document.emr_ec2_quicksight_refresh.json
+}
+
 resource "aws_iam_instance_profile" "emr_ec2_profile" {
   name = "${var.project_name}-${var.environment}-emr-ec2-profile"
   role = aws_iam_role.emr_ec2_role.name

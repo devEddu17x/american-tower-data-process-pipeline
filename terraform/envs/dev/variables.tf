@@ -89,3 +89,22 @@ variable "task_bid_price" {
   default     = "0.192"
 }
 
+variable "gold_run_id" {
+  description = "Active Gold run_id prefix in S3 exposed to Glue Data Catalog, Athena, and QuickSight"
+  type        = string
+  default     = "20261125T073334Z-7ea4f607ff"
+}
+
+variable "bronze_run_id" {
+  description = "Active Bronze run_id containing the verified INEI Distrito.rar manifest"
+  type        = string
+  default     = "20261125T071603Z-190d23d89e"
+}
+
+variable "silver_run_id" {
+  description = "Active Silver run_id containing the verified distritos dimension manifest"
+  type        = string
+  default     = "20261125T072542Z-e92a810559"
+}
+
+

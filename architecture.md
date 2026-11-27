@@ -63,12 +63,15 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 │   ├── 00_entorno_y_configuracion.ipynb  # Environment validation, S3 probe, dynamic EMR discovery
 │   └── 01_ingesta_bronze.ipynb           # Distributed ingestion across 10 worker nodes
 ├── scripts/
-│   ├── bootstrap.sh                      # EMR bootstrap action (S3 cache, bsdtar, PySpark venv)
-│   └── connect_emr.sh                    # Automated SSH, SSM key fetch, tunnels & VS Code Remote
+│   ├── connect_emr.sh                    # Automated SSH, SSM key fetch, tunnels & VS Code Remote (operator)
+│   └── rollback_quarter.sh               # Rollback incremental quarter demo script (operator)
 └── terraform/
     ├── bootstrap/                        # Remote state backend (S3 bucket with native locking)
     ├── envs/
     │   └── dev/                          # Root dev environment orchestration
+    ├── services/
+    │   ├── emr/                          # EMR bootstrap.sh & incremental PySpark jobs
+    │   └── lambda/                       # Python Lambda handlers
     └── modules/
         ├── networking/                   # VPC, Subnet, IGW, S3 Gateway Endpoint, EMR Security Groups
         ├── iam/                          # EMR Service Role, EC2 Role with S3FullAccess, Instance Profile

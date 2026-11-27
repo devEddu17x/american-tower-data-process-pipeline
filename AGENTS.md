@@ -14,28 +14,26 @@ Este documento contiene el contexto completo, las decisiones arquitectónicas, l
 
 ---
 
-## 2. Fuentes de Datos Oficiales (6 Conjuntos Auditados)
+## 2. Fuentes de Datos Oficiales (5 Conjuntos Auditados en Bronze, 4 Integrados en Silver/Gold)
 
 1. **Ookla — Speedtest Mobile Network Performance:**
-   - Capa móvil (`type=mobile` en `s3://ookla-open-data/parquet/performance/type=mobile/`, región `us-west-2`).
-   - 110.5 millones de registros de teselas a nivel global (2019-T1 a 2026-T1).
-   - Formato Apache Parquet con geometrías WKT (EPSG:4326).
-   - **Regla clave:** Solo se utiliza la capa móvil. La capa fija (`type=fixed`, 180M de registros de Wi-Fi/cable) se descarta por diseño, ya que las torres de American Tower prestan servicio a redes celulares móviles, no a conexiones fijas residenciales.
+   - Capa móvil (`type=mobile` en `https://ookla-open-data.s3.us-west-2.amazonaws.com/parquet/performance/type=mobile/`).
+   - 29 archivos Parquet trimestrales (2019-T1 a 2026-T1, 5.68 GB totales en Bronze).
+   - Filtro territorial por `quadkey` de zoom 6 y bounding box del Perú: 555,697 teselas candidatas (100 % válidas en calidad tabular), de las cuales **417,420** se asignan exactamente a los 1,890 polígonos distritales y 138,277 (mar/fronteras) pasan a cuarentena espacial.
+   - **Regla clave:** Solo se utiliza la capa móvil (`type=mobile`). La capa fija se descarta por diseño.
 2. **OSIPTEL — Cobertura de servicio móvil por empresa operadora:**
-   - Archivo CSV institucional (`Cobertura móvil por empresa operadora.csv`), 51,366 registros, corte marzo 2023.
-   - Declaración de presencia de tecnologías (2G, 3G, 4G, 5G) y cantidad de estaciones base por centro poblado.
-   - Registra presencia en **1,664 distritos únicos**.
+   - Archivo CSV institucional (`cobertura_osiptel.csv`, 7.59 MB), **51,366 registros**, período `202303`, fecha de corte `2023-06-13`.
+   - Declaración binaria de presencia 4G (`declara_4g`) por centro poblado y empresa operadora; cubre **1,663 distritos** en Gold (dejando 227 distritos sin reporte declarado, ~12.0 % de punto ciego).
 3. **OSIPTEL — Cantidad de estaciones base por tecnología:**
-   - Archivo XLSX institucional, 11,099 registros (2022 a 2026).
+   - Archivo XLSX institucional (`osiptel_estaciones.xlsx`, 740 KB).
+   - **Estado actual en el pipeline:** Ingestado y verificado con SHA-256 en Bronze (Notebook 01), pero aún no procesado ni integrado en Silver/Gold (reservado como insumo adicional para la Unidad 2).
 4. **INEI — Límites político-administrativos del Perú:**
-   - Capa cartográfica oficial (`DISTRITO.gpkg`), EPSG:4326.
-   - Totaliza exactamente **1,890 distritos** a nivel nacional.
+   - Capa cartográfica oficial (`Distrito.rar` con GeoPackage en EPSG:4326, más `Provincia.rar` y `Departamento.rar` en Bronze).
+   - Totaliza exactamente **1,890 distritos** con polígonos reparados y superficie calculada en `EPSG:6933` (`superficie_km2`).
 5. **WorldPop — Population Counts Perú 2020:**
-   - Raster GeoTIFF (`per_ppp_2020.tif`) a resolución espacial de 100 metros (~672 MB).
-   - 334.3 millones de celdas totales (152.1 millones de celdas con datos válidos).
-6. **Copernicus Sentinel-2 — Cloud-Optimized GeoTIFFs (Level-2A):**
-   - Catálogo Earth Search en AWS (`s3://e84-earth-search-sentinel-data/`, región `us-west-2`).
-   - Bandas B04 (Roja), B08 (NIR), B11 (SWIR) y capa SCL para el cálculo de índices de vegetación (NDVI) y edificación (NDBI).
+   - Raster GeoTIFF (`per_ppp_2020.tif`, 705 MB, dimensiones `15214 × 21977`, CRS `EPSG:4326`, NoData `-99999.0`).
+   - Agregado zonal real con `rasterio.mask` sobre los **1,890 distritos** sumando **151,864,618 píxeles válidos** (`poblacion_2020`).
+- **Nota sobre Copernicus Sentinel-2:** Excluido del pipeline implementado.
 
 ---
 
@@ -105,75 +103,64 @@ No se admiten supuestos inventados ni valores «0». La línea base se sostiene 
 
 ---
 
-## 5. Estructura de Directorios del Repositorio
+## 5. Estructura Actual del Repositorio
 
 ```text
-american-tower-data-process-pipeline/docs/
-├── 1/                                          # Capítulo 1: La empresa, el problema y la línea base (COMPLETADO)
-│   ├── 1.2/1.2.empresa-contexto.md
-│   ├── 1.3/1.3.problema.md
-│   ├── 1.4/1.4.linea-base.md
-│   ├── 1.5/1.5.objetivos.md
-│   ├── 1.6/1.6.alcance-limitaciones.md
-│   └── 1.7/1.7.justificacion-big-data.md
-├── 2/                                          # Capítulo 2: Arquitectura de la solución (COMPLETADO)
-│   ├── 2.1/                                    # 2.1 Arquitectura propuesta y componentes
-│   │   ├── arquitectura-propuesta.md
-│   │   ├── 2.1.1.fuentes-ingesta.md
-│   │   ├── 2.1.2.organizacion-data-lake.md
-│   │   ├── 2.1.3.procesamiento-integracion.md
-│   │   ├── 2.1.4.analisis-entrenamiento-publicacion-modelo.md
-│   │   └── 2.1.5.catalogo-consulta-visualizacion.md
-│   ├── 2.2/tabla.md                            # 2.2 Atributos de calidad
-│   ├── 2.3/tabla.md                            # 2.3 Prueba de sustitución de componentes
-│   └── 2.4/                                    # 2.4 Stack tecnológico y costos
-│       ├── 2.4.1.stack-tecnologico.md
-│       ├── 2.4.2.tecnologias-descartadas.md
-│       ├── 2.4.3.equivalencia-funcional-entre-rutas.md
-│       ├── 2.4.4.estimacion-costos-presupuesto.md
-│       └── 2.4.5.eficiencia-sostenibilidad.md
-├── 3/                                          # Capítulo 3: Implementación del pipeline de datos (EN CURSO)
-│   ├── 3.1/                                    # 3.1 Fuentes de datos y ficha de procedencia (COMPLETADO)
-│   │   ├── 3.1.1.ookla/dataset.md
-│   │   ├── 3.1.2.osiptel-servicio-movil-empresa/dataset.md
-│   │   ├── 3.1.3.cantidad-estaciones-base-tecnologia/dataset.md
-│   │   ├── 3.1.4.inei/dataset.md
-│   │   ├── 3.1.5.world-pop/dataset.md
-│   │   └── 3.1.6.sentinel/dataset.md
-│   ├── 3.2/                                    # 3.2 Ingesta y organización del Data Lake (COMPLETADO)
-│   ├── 3.3/                                    # 3.3 Procesamiento y limpieza (COMPLETADO)
-│   ├── 3.4/                                    # 3.4 Control de calidad de los datos (COMPLETADO)
-│   ├── 3.5/                                    # 3.5 Almacenamiento de datos procesados (COMPLETADO)
-│   ├── 3.6/                                    # 3.6 Optimización del rendimiento (COMPLETADO)
-│   ├── 3.7/                                    # 3.7 Prueba de escalabilidad (COMPLETADO)
-│   └── 3.8/                                    # 3.8 Seguridad de la plataforma (COMPLETADO)
-├── 4/                                          # Capítulo 4: Análisis, modelado y capa de consumo (EN CURSO)
-│   ├── 4.1/4.1.analisis-exploratorio-datos.md  # 4.1 Análisis exploratorio de datos (COMPLETADO)
-│   └── 4.2/4.2.modelo-base.md                  # 4.2 Modelo base (COMPLETADO)
-├── fuentes.md                                  # Descripcion breve y links de descarga de datasets
-├── guia.md                                     # Rúbrica y estructura académica UPAO
+american-tower-data-process-pipeline/
+├── docs/
+│   ├── images/                                 # Gráficas oficiales del pipeline y arquitectura
+│   │   ├── architecture.png
+│   │   ├── eda_trimestres.png
+│   │   ├── eda_departamentos.png
+│   │   ├── eda_distribucion_2024_t4.png
+│   │   ├── eda_poblacion_pruebas.png
+│   │   ├── eda_osiptel_4g.png
+│   │   └── modelo_errores.png
+│   ├── guia.md                                 # Rúbrica y estructura académica UPAO
+│   └── linea-base.md                           # Línea base del negocio auditada
+├── notebooks/                                  # Pipeline ejecutable de 5 libretas en EMR
+│   ├── 01_ingesta_bronze.ipynb                 # Ingesta cruda (35 objetos, 6.41 GB, SHA-256)
+│   ├── 02_silver_limpieza_y_calidad.ipynb      # Limpieza, cruce espacial, WorldPop y cuarentenas
+│   ├── 03_gold_integracion_distrital.ipynb     # Panel distrital (54,810) y contexto (1,890)
+│   ├── 04_optimizacion_y_escalabilidad.ipynb   # Broadcast vs. Shuffle y escalabilidad 1x/10x/100x
+│   └── 05_analisis_exploratorio_y_modelo_base.ipynb # EDA (2020-2024) y Modelo Base (Persistencia vs. Regresión)
+├── scripts/
+│   ├── connect_emr.sh                          # Conexión SSH y túneles a EMR (operador)
+│   └── rollback_quarter.sh                     # Rollback de trimestre incremental (operador)
+├── terraform/                                  # Infraestructura como Código (AWS VPC, S3, IAM, EMR, Catalog, Lambda)
+│   └── services/                               # Código desplegado en servicios AWS (EMR bootstrap/jobs y Lambdas)
+├── README.md                                   # Guía de reproducción desde cero
 └── AGENTS.md                                   # Este manual de contexto operativo
 ```
 
 ---
 
-## 6. Estado Actual del Proyecto y Próximos Pasos
+## 6. Estado Actual del Proyecto y Resultados Auditados (Reingeniería PR #17)
 
-- **Capítulo 1 y Capítulo 2:** Concluidos íntegramente y auditados.
-- **Capítulo 3 (Pipeline de Datos de Extremo a Extremo):** Concluido y verificado empíricamente al 100 % (Secciones 3.1 a 3.8).
-  - 3.2: 64 objetos auditados con sumas SHA-256 en S3 Bronze.
-  - 3.3, 3.4 y 3.5: Pipeline en EMR con 482,347 registros conformes (99.99 %), 21 registros en cuarentena y tablón Gold con 45,360 observaciones en Parquet Snappy particionado.
-  - 3.6: Broadcast Hash Join redujo el tiempo de integración en un 37.39 % (1.62 s vs. 2.58 s, 1.60x de aceleración).
-  - 3.7: Prueba factorial de escalabilidad completada con respuesta lineal en 1x (2.25 s), 5x (2.43 s), 10x (3.20 s) y 100x (29.29 s sobre 48.2M registros). Se determinó empíricamente el límite de capacidad física en 1,000x (~482M registros) debido al desbordamiento de memoria Java Heap en el nodo maestro por la complejidad del grafo DAG (47,000 tareas).
-  - 3.8: Seguridad integral (IAM, VPC privada, EMR Block Public Access, SSE-S3 AES-256 y AWS SSM Parameter Store).
-- **Capítulo 4 (Hito Parcial Semana 7: Subsecciones 4.1 y 4.2):**
-  - 4.1: EDA sobre datos limpios de Gold respondiendo a las 3 preguntas estratégicas, con 3 gráficos de alta resolución (`eda_1_velocidad_departamentos.png`, `eda_2_poblacion_vs_estaciones.png`, `eda_3_evolucion_temporal.png`) guardados en `docs/images/`.
-  - 4.2: Modelo Base con `RandomForestRegressor` en Spark MLlib sobre 43,470 observaciones supervisadas con lead $t+1$. Partición cronológica estricta (Train: 2019-2023 con 28,350 filas; Test: 2024 con 7,560 filas). Declaración formal de la Línea Base Técnica: MAE = 1.35 Mbps, $R^2$ = 0.9603 frente al modelo ingenuo, con ranking de importancia donde Latencia (28.6 %) y Estaciones Base 4G (27.5 %) explican más del 56 % del rendimiento.
-- **Libretas del Pipeline:**
-  - `notebooks/01_ingesta_bronze_refactorizada.ipynb`: Ingesta cruda a Bronze.
-  - `notebooks/02_pipeline_limpieza_calidad_almacenamiento.ipynb`: Limpieza, calidad y persistencia en Silver y Gold.
-  - `notebooks/03_optimizacion_y_escalabilidad.ipynb`: Medición de optimización Broadcast y escalabilidad factorial hasta 1000x.
-  - `notebooks/04_analisis_exploratorio_y_modelo_base.ipynb`: EDA con visualizaciones y Modelo Base de MLlib.
+Los 5 notebooks del pipeline fueron reescritos y ejecutados de extremo a extremo sobre Amazon EMR (`emr-7.1.0`, Spark `3.5.0-amzn-1`), con trazabilidad encadenada por manifiestos `_SUCCESS.json` en `s3://american-tower-dev-operations-1dd72256126674a5893dfca3df/`:
+
+- **Notebook 01 (`01_ingesta_bronze.ipynb`):**
+  - Corrida `20261125T071603Z-190d23d89e`: **35 objetos verificados** (6,410,857,344 bytes / 6.41 GB) con SHA-256: 29 parquets Ookla (`2019-T1` a `2026-T1`), 3 cartografías INEI, 2 archivos OSIPTEL y 1 raster WorldPop 2020.
+- **Notebook 02 (`02_silver_limpieza_y_calidad.ipynb`):**
+  - Corrida `20261125T072542Z-e92a810559`: 555,697 teselas candidatas (100 % válidas en reglas tabulares), **417,420 asignadas** a los 1,890 distritos del INEI mediante `shapely.STRtree` (`covered_by`) y 138,277 enviadas a cuarentena espacial (`fuera_de_poligonos`). WorldPop 2020 agrega **151,864,618 píxeles válidos** sobre los 1,890 distritos. OSIPTEL Cobertura limpia 51,366 registros (`periodo=202303`, `fecha_corte=2023-06-13`). Publica **5 tablas Silver** en Parquet Snappy.
+- **Notebook 03 (`03_gold_integracion_distrital.ipynb`):**
+  - Corrida `20261125T073334Z-7ea4f607ff`: genera **2 tablas Gold**:
+    - `panel_distrital` (particionada por `year`): **54,810 filas** ($1,890 \times 29$ trimestres), velocidad ponderada por `tests`, **41,434** pares observados y **13,376** sin medición (`NULL`).
+    - `contexto_territorial`: **1,890 filas**, 100 % con `poblacion_2020` (WorldPop) y **1,663** con cobertura declarada de OSIPTEL (227 sin reporte).
+- **Notebook 04 (`04_optimizacion_y_escalabilidad.ipynb`):**
+  - Corrida `20261125T073537Z-c20fc75eae`:
+    - **Optimización:** `BroadcastHashJoin` (mediana **0.381 s**) vs. `SortMergeJoin` (mediana **0.838 s**) sobre 417,420 filas → **54.48 % de reducción de tiempo** (~2.20×).
+    - **Escalabilidad (Bronze → Silver → Gold completo, 8 workers activos, 0 spill):**
+      - `1×` (555,697 candidatas): **185.24 s** (1.33 GB leídos).
+      - `10×` (5,556,970 candidatas): **236.86 s** (`1.28×` vs. `1×`, 2.37 GB leídos).
+      - `100×` (55,569,700 candidatas / 41.74M asignadas): **838.08 s** (`4.52×` vs. `1×`, 9.70 GB leídos, 1.34 GB shuffle, 0 spill).
+- **Notebook 05 (`05_analisis_exploratorio_y_modelo_base.ipynb`):**
+  - Corrida `20261125T080507Z-f8de12bfa0`:
+    - **EDA (`2020-T1` a `2024-T4`, 20 trimestres):** 37,800 filas distrito-trimestre, 29,161 observadas (77.15 %). 6 gráficas generadas y extraídas en `docs/images/`. Mediana nacional subió de **14.08 Mbps** (`2020-T1`) a **30.45 Mbps** (`2024-T4`). Correlación de Spearman población vs. pruebas = **0.706**.
+    - **Modelo Base (pares consecutivos $t \rightarrow t+1$):** Train `2020–2022` (13,660 pares), Val `2023` (5,248 pares), Test `2024` (5,666 pares).
+      - Validación 2023: Persistencia MAE **13.28 Mbps** ($R^2 = -0.259$) vs. Regresión lineal simple MAE **11.64 Mbps** ($R^2 = 0.028$).
+      - Prueba 2024: Persistencia MAE **14.65 Mbps** ($R^2 = -0.480$) vs. Regresión lineal simple MAE **13.03 Mbps** (RMSE **20.22**, $R^2 = -0.083$, sesgo **$-7.68$ Mbps**).
+- **Documentación del informe:** Los borradores `.md` antiguos bajo `docs/1/` a `docs/7/` fueron eliminados por el usuario para evitar desfase; queda pendiente reescribirlos cuando el usuario lo indique.
 
 ---
 
