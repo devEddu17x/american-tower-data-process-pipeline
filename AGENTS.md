@@ -118,17 +118,19 @@ american-tower-data-process-pipeline/
 │   │   └── modelo_errores.png
 │   ├── guia.md                                 # Rúbrica y estructura académica UPAO
 │   └── linea-base.md                           # Línea base del negocio auditada
-├── notebooks/                                  # Pipeline ejecutable de 5 libretas en EMR
+├── notebooks/                                  # Pipeline ejecutable de 6 libretas en EMR
 │   ├── 01_ingesta_bronze.ipynb                 # Ingesta cruda (35 objetos, 6.41 GB, SHA-256)
 │   ├── 02_silver_limpieza_y_calidad.ipynb      # Limpieza, cruce espacial, WorldPop y cuarentenas
 │   ├── 03_gold_integracion_distrital.ipynb     # Panel distrital (54,810) y contexto (1,890)
 │   ├── 04_optimizacion_y_escalabilidad.ipynb   # Broadcast vs. Shuffle y escalabilidad 1x/10x/100x
-│   └── 05_analisis_exploratorio_y_modelo_base.ipynb # EDA (2020-2024) y Modelo Base (Persistencia vs. Regresión)
+│   ├── 05_analisis_exploratorio_y_modelo_base.ipynb # EDA (2020-2024) y Modelo Base (Persistencia vs. Regresión)
+│   └── 06_modelo_gbt_regressor.ipynb           # Modelo GBTRegressor (Spark MLlib + Duan), priorización y mapa
 ├── scripts/
 │   ├── connect_emr.sh                          # Conexión SSH y túneles a EMR (operador)
 │   └── rollback_quarter.sh                     # Rollback de trimestre incremental (operador)
-├── terraform/                                  # Infraestructura como Código (AWS VPC, S3, IAM, EMR, Catalog, Lambda)
-│   └── services/                               # Código desplegado en servicios AWS (EMR bootstrap/jobs y Lambdas)
+├── terraform/                                  # Infraestructura como Código (VPC, S3, IAM, EMR, Catalog, Lambda, SageMaker)
+│   ├── modules/                                # Módulos HCL puros (networking, iam, s3, emr, catalog, lambda, sagemaker)
+│   └── services/                               # Código desplegado en servicios AWS (emr, lambda, sagemaker/inference)
 ├── README.md                                   # Guía de reproducción desde cero
 └── AGENTS.md                                   # Este manual de contexto operativo
 ```
@@ -160,6 +162,17 @@ Los 5 notebooks del pipeline fueron reescritos y ejecutados de extremo a extremo
     - **Modelo Base (pares consecutivos $t \rightarrow t+1$):** Train `2020–2022` (13,660 pares), Val `2023` (5,248 pares), Test `2024` (5,666 pares).
       - Validación 2023: Persistencia MAE **13.28 Mbps** ($R^2 = -0.259$) vs. Regresión lineal simple MAE **11.64 Mbps** ($R^2 = 0.028$).
       - Prueba 2024: Persistencia MAE **14.65 Mbps** ($R^2 = -0.480$) vs. Regresión lineal simple MAE **13.03 Mbps** (RMSE **20.22**, $R^2 = -0.083$, sesgo **$-7.68$ Mbps**).
+- **Notebook 06 (`06_modelo_gbt_regressor.ipynb`):**
+  - Modelo `GBTRegressor` en Spark MLlib (`max_depth=3, max_iter=40, step_size=0.08`) entrenado sobre `objetivo_log_delta` ponderado por `log1p(tests)` con estimador de calibración de Duan integrado en `SQLTransformer`.
+  - Evaluación cronológica estricta (`2020–2022` → `2023` val → `2024` test, Duan `1.1448`):
+    - Prueba 2024 todos los pares (5,666): MAE **11.94 Mbps**, RMSE **19.17 Mbps**, sesgo **$-2.63$ Mbps**, $R^2 = +0.0275$.
+    - Prueba 2024 con suficiencia (`tests >= 10`, 3,990 pares): MAE **9.98 Mbps**, RMSE **14.77 Mbps**, sesgo **$-0.77$ Mbps**, $R^2 = +0.0845$ (Validación 2023: MAE **9.31**, $R^2 = +0.149$).
+  - Modelo productivo reentrenado sobre los **35,557 pares** hasta `2026-T1` (Duan `1.1326`), guardado en `s3://<artifacts>/models/gbt_regressor/` y publicado en `s3://<gold>/predicciones_modelos/modelo_gbt_regressor.parquet` (1,564 predicciones para `2026-T2`, delta promedio **+1.99 Mbps** en QuickSight).
+  - Estabilidad del índice de preselección territorial: temporal (`2025-T4` vs. `2026-T1`) **72.0 %** overlap Top 50 (Spearman **0.8389**); sensibilidad de pesos ($\pm 10\%$) **86 % – 94 %** overlap Top 50 (Spearman **0.951 – 0.985**).
+- **Infraestructura de Consumo, Automatización e Inferencia (Terraform):**
+  - `terraform/modules/catalog`: Glue Data Catalog (`american_tower_dev_gold`, tablas `panel_distrital` con Partition Projection, `contexto_territorial`, `predicciones_modelos`), Athena Workgroup v3 y QuickSight (Data Source + Dataset SPICE `Panel Distrital Enriquecido` + Dataset `DIRECT_QUERY` `Inferencias de Modelos`) desplegados y verificados en vivo.
+  - `terraform/modules/lambda`: Trigger S3 (`incoming/ookla/*.parquet`) → Lambda → EMR Step (`terraform/services/emr/process_incremental_ookla.py`) + refresh SPICE, y `scripts/rollback_quarter.sh` para revertir trimestres incrementales.
+  - `terraform/modules/sagemaker`: ECR + IAM Role + SageMaker Serverless CPU (`3072 MB`, toggle `enable_sagemaker = false`) y contenedor Spark MLlib en `terraform/services/sagemaker/inference/`.
 - **Documentación del informe:** Los borradores `.md` antiguos bajo `docs/1/` a `docs/7/` fueron eliminados por el usuario para evitar desfase; queda pendiente reescribirlos cuando el usuario lo indique.
 
 ---
