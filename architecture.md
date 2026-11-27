@@ -71,13 +71,17 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
     │   └── dev/                          # Root dev environment orchestration
     ├── services/
     │   ├── emr/                          # EMR bootstrap.sh & incremental PySpark jobs
-    │   └── lambda/                       # Python Lambda handlers
+    │   ├── lambda/                       # Python Lambda handlers (bronze-to-emr-trigger)
+    │   └── sagemaker/inference/          # Spark MLlib CPU Serverless Inference container
     └── modules/
         ├── networking/                   # VPC, Subnet, IGW, S3 Gateway Endpoint, EMR Security Groups
-        ├── iam/                          # EMR Service Role, EC2 Role with S3FullAccess, Instance Profile
+        ├── iam/                          # EMR Service Role, EC2 Role (S3 + QuickSight refresh), Instance Profile
         ├── integrations/iam_to_emr/      # IAM propagation safety sleep module
         ├── s3/                           # Data Lake 5-bucket architecture with force_destroy = false
-        └── emr/                          # EMR Cluster (Master + Core) & Spot Task Instance Group
+        ├── emr/                          # EMR Cluster (Master + Core) & Spot Task Instance Group
+        ├── catalog/                      # Glue Data Catalog, Athena v3 Workgroup, QuickSight Data Source & Datasets
+        ├── lambda/                       # S3 incoming/ookla/ -> Lambda -> EMR Step trigger
+        └── sagemaker/                    # ECR repository, IAM Execution Role, Serverless CPU Endpoint (toggle)
 ```
 
 ---
