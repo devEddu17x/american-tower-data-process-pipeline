@@ -118,13 +118,14 @@ american-tower-data-process-pipeline/
 │   │   └── modelo_errores.png
 │   ├── guia.md                                 # Rúbrica y estructura académica UPAO
 │   └── linea-base.md                           # Línea base del negocio auditada
-├── notebooks/                                  # Pipeline ejecutable de 6 libretas en EMR
+├── notebooks/                                  # Pipeline ejecutable de 7 libretas en EMR
 │   ├── 01_ingesta_bronze.ipynb                 # Ingesta cruda (35 objetos, 6.41 GB, SHA-256)
 │   ├── 02_silver_limpieza_y_calidad.ipynb      # Limpieza, cruce espacial, WorldPop y cuarentenas
 │   ├── 03_gold_integracion_distrital.ipynb     # Panel distrital (54,810) y contexto (1,890)
 │   ├── 04_optimizacion_y_escalabilidad.ipynb   # Broadcast vs. Shuffle y escalabilidad 1x/10x/100x
 │   ├── 05_analisis_exploratorio_y_modelo_base.ipynb # EDA (2020-2024) y Modelo Base (Persistencia vs. Regresión)
-│   └── 06_modelo_gbt_regressor.ipynb           # Modelo GBTRegressor (Spark MLlib + Duan), priorización y mapa
+│   ├── 06_modelo_gbt_regressor.ipynb           # Modelo GBTRegressor (Spark MLlib + Duan), priorización y mapa
+│   └── 07_Huber_L2_Interacciones.ipynb         # Modelo de Alba Malca (Spark MLlib), evaluación por etapas y mapa
 ├── scripts/
 │   ├── connect_emr.sh                          # Conexión SSH y túneles a EMR (operador)
 │   └── rollback_quarter.sh                     # Rollback de trimestre incremental (operador)
@@ -137,9 +138,9 @@ american-tower-data-process-pipeline/
 
 ---
 
-## 6. Estado Actual del Proyecto y Resultados Auditados (Reingeniería PR #17)
+## 6. Estado Actual del Proyecto y Resultados Auditados
 
-Los 5 notebooks del pipeline fueron reescritos y ejecutados de extremo a extremo sobre Amazon EMR (`emr-7.1.0`, Spark `3.5.0-amzn-1`), con trazabilidad encadenada por manifiestos `_SUCCESS.json` en `s3://american-tower-dev-operations-1dd72256126674a5893dfca3df/`:
+Las primeras cinco libretas fueron reescritas durante la reingeniería PR #17. Las ejecuciones de los modelos 06 y 07 amplían ese avance sobre Amazon EMR (`emr-7.1.0`, Spark `3.5.0-amzn-1`), con linaje mediante manifiestos `_SUCCESS.json` en `s3://american-tower-dev-operations-1dd72256126674a5893dfca3df/` y resultados conservados en las libretas:
 
 - **Notebook 01 (`01_ingesta_bronze.ipynb`):**
   - Corrida `20261125T071603Z-190d23d89e`: **35 objetos verificados** (6,410,857,344 bytes / 6.41 GB) con SHA-256: 29 parquets Ookla (`2019-T1` a `2026-T1`), 3 cartografías INEI, 2 archivos OSIPTEL y 1 raster WorldPop 2020.
@@ -174,6 +175,35 @@ Los 5 notebooks del pipeline fueron reescritos y ejecutados de extremo a extremo
   - `terraform/modules/lambda`: Trigger S3 (`incoming/ookla/*.parquet`) → Lambda → EMR Step (`terraform/services/emr/process_incremental_ookla.py`) + refresh SPICE, y `scripts/rollback_quarter.sh` para revertir trimestres incrementales.
   - `terraform/modules/sagemaker`: ECR + IAM Role + SageMaker Serverless CPU (`3072 MB`, toggle `enable_sagemaker = false`) y contenedor Spark MLlib en `terraform/services/sagemaker/inference/`.
 - **Documentación del informe:** Los borradores `.md` antiguos bajo `docs/1/` a `docs/7/` fueron eliminados por el usuario para evitar desfase; queda pendiente reescribirlos cuando el usuario lo indique.
+
+---
+
+**Notebook 07 · Regresión Huber + L2 + interacciones**
+
+La libreta `notebooks/07_Huber_L2_Interacciones.ipynb`, de Alba Malca, conserva la ejecución `20261128T113553Z-c922621085` del 28 de noviembre de 2026. El modelo y las transformaciones de aprendizaje utilizan únicamente Spark MLlib. La etiqueta es el cambio trimestral de velocidad en Mbps; la velocidad futura se reconstruye sumando el cambio a la velocidad actual y limitando el resultado a valores no negativos.
+
+Se utilizan 19 predictores numéricos, codificación departamental y tres interacciones. La imputación y la codificación se ajustan con entrenamiento; `LinearRegression` utiliza `loss="huber"`, `elasticNetParam=0.0`, `solver="l-bfgs"`, estandarización interna y pesos `log1p(tests_t)`. Las ventanas se calculan sobre el calendario completo. OSIPTEL 2023 queda reservado al índice territorial; WorldPop 2020 se trata como contexto fijo retrospectivo.
+
+La evaluación reproduce los pares del notebook 05, con 13,660 en entrenamiento 2020–2022, 5,248 en validación 2023 y 5,666 en prueba 2024, según año objetivo. Se comparan L2, Huber + L2 y Huber + L2 con interacciones mediante 21 configuraciones. La selección del modelo principal utiliza exclusivamente validación y obtiene `regParam=0.01`, `epsilon=1.8` y 35 iteraciones de evaluación.
+
+| Resultado guardado | Pares | MAE (Mbps) | RMSE (Mbps) | Sesgo (Mbps) | R² |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Huber con interacciones, validación completa | 5,248 | 11.2486 | 18.6789 | -2.5129 | 0.0690 |
+| Huber con interacciones, prueba completa | 5,666 | 12.1837 | 19.9154 | -2.9258 | -0.0501 |
+| Huber con interacciones, prueba con suficiencia | 3,990 | 9.7610 | 14.6869 | -2.4549 | 0.0951 |
+| Regresión multivariable L2, prueba completa | 5,666 | 12.1516 | 19.6272 | -1.1467 | -0.0200 |
+
+La fuente de estas cifras son las salidas guardadas de búsqueda y evaluación del notebook 07. El modelo principal mejora persistencia y regresión simple, pero no supera a L2 en prueba. Las interacciones aportan una reducción marginal del MAE frente a Huber sin interacciones. No se ha cuantificado la incertidumbre de esas diferencias ni corresponde afirmar superioridad estadística.
+
+El modelo productivo utiliza 35,557 pares y genera 1,564 predicciones para `2026-T2`. Se obtienen 1,019 distritos aptos para el índice, 545 predicciones con índice nulo y 326 distritos sin telemetría. La suficiencia exige diez pruebas y dos teselas; los pesos del índice son 40/35/25. La estabilidad retrospectiva conserva 35 de los 50 distritos, con Spearman 0.7966 entre 866 distritos comunes. Los escenarios de pesos conservan entre el 82 % y el 90 % del Top 50; no representan intervalos de precisión del pronóstico.
+
+Los PipelineModel se guardan por corrida bajo `models/huber_l2_interacciones/run_id=<corrida>/evaluacion` y `productivo` en Artifacts. La publicación Gold utiliza `predicciones_modelos/modelo_huber_l2_interacciones.parquet`; las evidencias se registran en `run_id=<corrida>/modelo_huber_l2_interacciones/` de Operations.
+
+La celda final sigue el patrón de publicación del notebook 06 y solo utiliza S3. Si el archivo local ya generado está disponible y la publicación está habilitada, lo valida y publica; de lo contrario verifica la publicación existente. La ejecución guardada de esa celda confirma 1,564 filas de Alba Malca para `2026-T2` y 545 índices nulos. No llama a `DescribeDataSet` ni a `CreateIngestion`; la llamada anterior a `DescribeDataSet` fue retirada tras el error de autorización del rol EMR. No se modificaron políticas IAM para esta corrección. La presencia en S3 no certifica la visualización del modelo en QuickSight.
+
+El dataset de inferencias se configura como DIRECT_QUERY en `terraform/modules/catalog/quicksight.tf`; corresponde distinguirlo del dataset SPICE del panel histórico y revisar sus filtros por modelo, autora y periodo. El notebook e instalador anteriores de XGBoost se retiraron del repositorio y el bootstrap recuperó sus dependencias originales. No se limpiaron paquetes del EMR activo ni la caché remota.
+
+La validación con varios cortes temporales, el remuestreo por distrito, los cuantiles de errores extremos y la sensibilidad a umbrales de telemetría e imputación OSIPTEL fueron propuestos y explicados, pero permanecen sin implementar. La carga del PipelineModel por corrida en el servicio SageMaker también permanece pendiente de verificar. No se deben presentar estos elementos como resultados terminados.
 
 ---
 

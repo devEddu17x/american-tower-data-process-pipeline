@@ -95,9 +95,9 @@ El pipeline opera exclusivamente sobre fuentes publicas institucionales verifica
 
 ---
 
-## 5. Orden de Ejecucion del Pipeline (6 Libretas)
+## 5. Orden de Ejecucion del Pipeline (7 Libretas)
 
-Las libretas en `notebooks/` deben ejecutarse en orden en el nodo primario de EMR con el kernel **American Tower - PySpark**. Cada etapa publica un manifiesto `_SUCCESS.json` en el bucket `operations` que sirve como entrada trazable para la siguiente:
+Las libretas en `notebooks/` se ejecutan en el nodo primario de EMR con el kernel **American Tower - PySpark**. Las etapas 01–03 encadenan los manifiestos de ingesta, limpieza e integración. Las libretas 04–07 consumen Gold; los modelos 06 y 07 son desarrollos independientes y no requieren ejecutar el modelo del otro integrante.
 
 ```text
 01_ingesta_bronze.ipynb                   --> 35 objetos en Bronze + bronze/_SUCCESS.json
@@ -109,6 +109,7 @@ Las libretas en `notebooks/` deben ejecutarse en orden en el nodo primario de EM
         +--> 04_optimizacion_y_escalabilidad.ipynb      --> Benchmark Broadcast vs. Shuffle y escala 1x/10x/100x
         +--> 05_analisis_exploratorio_y_modelo_base.ipynb --> EDA (2020-2024), 6 graficas y Modelo Base MLlib
         +--> 06_modelo_gbt_regressor.ipynb              --> GBTRegressor (Duan), estabilidad, mapa y predicciones Gold
+        +--> 07_Huber_L2_Interacciones.ipynb            --> Huber + L2, interacciones, evaluación por etapas y publicación Gold
 ```
 
 ### 1. Ingesta Bronze (`notebooks/01_ingesta_bronze.ipynb`)
@@ -147,6 +148,35 @@ Construye y valida dos productos analiticos en Parquet Snappy:
 
 ---
 
+**Notebook 07 · Huber + L2 + interacciones**
+
+La libreta [07_Huber_L2_Interacciones.ipynb](notebooks/07_Huber_L2_Interacciones.ipynb), de Alba Malca, contiene la corrida `20261128T113553Z-c922621085`, ejecutada en Spark `3.5.0-amzn-1` el 28 de noviembre de 2026. Estima el cambio de velocidad en Mbps y reconstruye la velocidad del siguiente trimestre. El ajuste y las transformaciones de aprendizaje utilizan exclusivamente Spark MLlib.
+
+Se emplean 19 predictores numéricos, codificación departamental y tres interacciones explícitas. La imputación por mediana y la codificación se ajustan con entrenamiento; la regresión aplica estandarización interna, pérdida Huber, regularización L2 y pesos `log1p(tests_t)`. OSIPTEL 2023 interviene únicamente en el índice territorial. Se reproducen los pares del notebook 05, con 13,660 en entrenamiento, 5,248 en validación y 5,666 en prueba. La búsqueda compara L2, Huber + L2 y Huber + L2 con interacciones mediante 21 configuraciones. El modelo principal selecciona `regParam=0.01` y `epsilon=1.8` en validación.
+
+| Modelo y segmento de prueba 2024 | Pares | MAE (Mbps) | RMSE (Mbps) | Sesgo (Mbps) | R² |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Regresión multivariable L2, todos los pares | 5,666 | 12.1516 | 19.6272 | -1.1467 | -0.0200 |
+| Huber + L2 + interacciones, todos los pares | 5,666 | 12.1837 | 19.9154 | -2.9258 | -0.0501 |
+| Regresión multivariable L2, con suficiencia | 3,990 | 9.7397 | 14.4608 | -1.0484 | 0.1227 |
+| Huber + L2 + interacciones, con suficiencia | 3,990 | 9.7610 | 14.6869 | -2.4549 | 0.0951 |
+
+Las cifras proceden de las salidas guardadas de evaluación en la libreta. Huber con interacciones mejora las referencias de persistencia y regresión simple, pero no supera a L2 en prueba. La ventaja marginal de las interacciones no acredita superioridad estadística. La validación con varios cortes, los intervalos mediante remuestreo por distrito, los cuantiles de errores extremos y la sensibilidad a umbrales de telemetría e imputación OSIPTEL permanecen pendientes de implementación.
+
+El modelo productivo se ajusta sobre 35,557 pares y genera 1,564 predicciones para `2026-T2`. El índice utiliza pesos de 40 % para velocidad proyectada, 35 % para población y 25 % para brecha declarada. Exige diez pruebas, dos teselas y una predicción válida. Se obtienen 1,019 distritos aptos, 545 con predicción e índice nulo por baja suficiencia y 326 sin telemetría. El mapa conserva los 1,890 distritos, destaca el Top 50 y etiqueta el Top 10. La estabilidad retrospectiva conserva el 70 % del Top 50; los escenarios de pesos conservan entre el 82 % y el 90 %.
+
+**Publicación del modelo y consulta en QuickSight**
+
+Los PipelineModel de evaluación y producción se guardan bajo `s3://<artifacts>/models/huber_l2_interacciones/run_id=<corrida>/`. Las predicciones se publican en `s3://<gold>/predicciones_modelos/modelo_huber_l2_interacciones.parquet`; las métricas y figuras se registran bajo `s3://<operations>/run_id=<corrida>/modelo_huber_l2_interacciones/`.
+
+La última celda sigue el mecanismo del notebook 06. Publica el archivo local ya generado cuando está disponible y la publicación está habilitada; en una sesión reiniciada verifica el archivo existente en S3 sin repetir entrenamiento. La salida guardada confirma la descarga y verificación de 1,564 filas, con autora `Alba Malca`, periodo `2026-T2` y 545 índices nulos.
+
+El dataset `Inferencias de Modelos (dev)` está configurado en Terraform como `DIRECT_QUERY`, mediante Athena y la tabla `american_tower_dev_gold.predicciones_modelos`. La celda no llama a la API de QuickSight ni inicia ingestas SPICE. La verificación S3 no confirma la visualización del dashboard; corresponde revisar el dataset y los filtros `modelo = huber_l2_interacciones`, `autor = Alba Malca` y `periodo_objetivo = 2026-T2`. El dataset SPICE `Panel Distrital Enriquecido` corresponde al panel histórico.
+
+Se retiraron del repositorio el notebook y el instalador específicos de XGBoost, así como sus incorporaciones al bootstrap. El modelo actual no requiere XGBoost ni scikit-learn. No se desinstalaron paquetes del EMR activo ni se modificó la caché remota. La integración del PipelineModel de Huber en SageMaker permanece pendiente de verificar; su ruta por corrida requiere resolver la selección del artefacto productivo.
+
+---
+
 ## 6. Monitoreo y Verificacion Operativa
 
 Con la sesion SSH activa (`scripts/connect_emr.sh`), las interfaces de monitoreo quedan disponibles localmente:
@@ -173,7 +203,8 @@ american-tower-data-process-pipeline/
 │   ├── 03_gold_integracion_distrital.ipynb
 │   ├── 04_optimizacion_y_escalabilidad.ipynb
 │   ├── 05_analisis_exploratorio_y_modelo_base.ipynb
-│   └── 06_modelo_gbt_regressor.ipynb
+│   ├── 06_modelo_gbt_regressor.ipynb
+│   └── 07_Huber_L2_Interacciones.ipynb
 ├── scripts/
 │   ├── connect_emr.sh                          # Conexion SSH automatica y tunelaje (operador)
 │   └── rollback_quarter.sh                     # Rollback de trimestre incremental (operador)

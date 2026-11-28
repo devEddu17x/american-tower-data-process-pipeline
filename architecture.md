@@ -49,7 +49,7 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 | `operations` (`evidence/run_id=<id>/`) | Manifiestos, calidad, métricas y reportes de ejecución. |
 | `operations` (`benchmarks/escenario=<factor>/`) | Entradas y salidas exclusivas de las pruebas de rendimiento. |
 | `artifacts` (`config/`) | Configuraciones y contratos de datos versionados. |
-| `artifacts` (`models/`) | Modelos y transformaciones, cuando se desarrolle el punto 4. |
+| `artifacts` (`models/`) | PipelineModel de evaluación y producción, con sus transformaciones y separación por modelo. Huber conserva además la versión por corrida. |
 | `artifacts` (`logs/`) | Registros de ejecución y eventos de Spark y EMR. |
 | `artifacts` (`scripts/`) | Scripts de bootstrap y dependencias del clúster. |
 
@@ -60,8 +60,13 @@ The architectural pattern avoids legacy manual VM configurations, prioritizing a
 ```text
 .
 ├── notebooks/
-│   ├── 00_entorno_y_configuracion.ipynb  # Environment validation, S3 probe, dynamic EMR discovery
-│   └── 01_ingesta_bronze.ipynb           # Distributed ingestion across 10 worker nodes
+│   ├── 01_ingesta_bronze.ipynb
+│   ├── 02_silver_limpieza_y_calidad.ipynb
+│   ├── 03_gold_integracion_distrital.ipynb
+│   ├── 04_optimizacion_y_escalabilidad.ipynb
+│   ├── 05_analisis_exploratorio_y_modelo_base.ipynb
+│   ├── 06_modelo_gbt_regressor.ipynb
+│   └── 07_Huber_L2_Interacciones.ipynb
 ├── scripts/
 │   ├── connect_emr.sh                    # Automated SSH, SSM key fetch, tunnels & VS Code Remote (operator)
 │   └── rollback_quarter.sh               # Rollback incremental quarter demo script (operator)
@@ -98,6 +103,18 @@ Because AWS EMR enforces the strict account-level *Block Public Access* policy, 
 | **Spark Driver UI** | `4040` | `http://localhost:4040` | Dynamic ephemeral port active only while a SparkSession is running (wrapped in YARN AmIpFilter). |
 
 *Note on LocalForward routing:* In Amazon EMR, YARN binds to the private VPC IP rather than loopback `127.0.0.1`. The SSH tunnels in `connect_emr.sh` and Terraform's `.ssh/config` forward directly to `${MASTER_DNS}` (which resolves internally to the private IP), preventing connection rejections.
+
+---
+
+## Modelado distrital y publicación de inferencias
+
+Los notebooks 06 y 07 consumen el panel distrital y el contexto Gold de forma independiente. El notebook 07, de Alba Malca, implementa regresión Huber con regularización L2 e interacciones mediante Spark MLlib. Estima el cambio de velocidad en Mbps y reconstruye la velocidad futura. El preprocesamiento aprendido forma parte del PipelineModel; la construcción de rezagos e indicadores requiere las características temporales preparadas por la libreta. OSIPTEL 2023 se utiliza únicamente en el índice territorial actual.
+
+Los artefactos Huber separan evaluación y producción en `s3://<artifacts>/models/huber_l2_interacciones/run_id=<corrida>/`. El producto trimestral se publica en `s3://<gold>/predicciones_modelos/modelo_huber_l2_interacciones.parquet`, con el contrato compartido de inferencias, autora `Alba Malca` e índice nullable. El mapa conserva el universo distrital y diferencia los distritos sin índice mediante color gris.
+
+La ruta de consumo es S3 Gold → tabla Glue `predicciones_modelos` → Athena → dataset QuickSight `Inferencias de Modelos (dev)`, configurado como DIRECT_QUERY. La celda final del notebook 07 sigue el patrón de publicación del 06 y solo utiliza la API de S3. Puede verificar una publicación existente sin Spark ni reentrenamiento; no inicia ingestas SPICE ni modifica el dashboard. El dataset SPICE `Panel Distrital Enriquecido` mantiene una función distinta sobre el panel histórico.
+
+La corrida y las métricas ejecutadas del notebook 07 se documentan en [README.md](README.md) y [AGENTS.md](AGENTS.md). La integración con el servicio SageMaker no queda resuelta únicamente por guardar un PipelineModel. El servicio actual busca `models/<modelo>/`, mientras que Huber guarda versiones por corrida; permanece pendiente resolver esa selección y verificar las características de entrada requeridas para inferencia.
 
 ---
 
